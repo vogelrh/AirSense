@@ -9,6 +9,11 @@ if [ ! -d "${BSEC_DIR}" ]; then
   exit 1
 fi
 
+if [ ! -d "${MQTT_DIR}" ]; then
+  echo 'MQTT directory missing.'
+  exit 1
+fi
+
 if [ ! -d "${CONFIG_DIR}" ]; then
   mkdir "${CONFIG_DIR}"
 fi
@@ -35,12 +40,16 @@ cc -Wall -Wno-unused-but-set-variable -Wno-unused-variable -static \
   -iquote"${BSEC_DIR}"/API \
   -iquote"${BSEC_DIR}"/algo/${ARCH} \
   -iquote"${BSEC_DIR}"/examples \
+  -isystem"${MQTT_DIR}"/include \
+  -isystem"${MQTT_DIR}"/examples/templates \
   "${BSEC_DIR}"/API/bme680.c \
   "${BSEC_DIR}"/examples/bsec_integration.c \
-  ./bsec_bme680.c \
+  "${MQTT_DIR}"/src/mqtt_pal.c \
+  "${MQTT_DIR}"/src/mqtt.c \
+  ./airsense.c \
   -L"${BSEC_DIR}"/algo/"${ARCH}" -lalgobsec \
-  -lm -lrt \
-  -o bsec_bme680
+  -lm -lrt -lpthread \
+  -o airsense
 echo 'Compiled.'
 
 cp "${BSEC_DIR}"/config/"${CONFIG}"/bsec_iaq.config "${CONFIG_DIR}"/

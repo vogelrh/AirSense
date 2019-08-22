@@ -1,4 +1,7 @@
-# bsec_bme680_linux
+# AirSense
+
+A C-based application that periodically reads air quality data from two sensors (Bosh BME680 & Plantower PMS5003) and
+sends the data across a MQTT channel.
 
 Read the BME680 sensor with the BSEC library on Linux (e.g. Raspberry Pi)
 
@@ -33,6 +36,9 @@ compensate. The default is 5 °C:
 ```
 
 To compile: `./make.sh`
+
+## MQTT-C library
+
 
 ## Usage
 
