@@ -25,21 +25,52 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <linux/i2c-dev.h>
+#include <mqtt.h>
+#include <posix_sockets.h>
 #include "bsec_integration.h"
 
-/* definitions */
+/* definitions  Ultimately we want these in a config file*/
 
 #define DESTZONE "TZ=EDT"
 #define temp_offset (5.0f)
 #define sample_rate_mode (BSEC_SAMPLE_RATE_LP)
 #define SENSOR_ID "PiAirQ01"
+#define DEF_ADDR "192.168.1.127"
+#define DEF_PORT "1883"
+#define DEF_CHAN "AirSenseData"
 
 int g_i2cFid; // I2C Linux device handle
 int i2c_address = BME680_I2C_ADDR_SECONDARY;
 char *filename_state = "bsec_iaq.state";
-char *filename_config = "bsec_iaq.config";
+char *filename_iaq_config = "bsec_iaq.config";
+char *filename_config = "airsense.config";
+struct mqtt_client client; //MQTT client
 
-/* functions */
+/* MQTT functions */
+
+/**
+ * @brief Liam Bindle's client's refresher function. This function triggers back-end routines to 
+ *        handle ingress/egress traffic to the broker.
+ * 
+ * @note All this function needs to do is call \ref __mqtt_recv and 
+ *       \ref __mqtt_send every so often. I've picked 100 ms meaning that 
+ *       client ingress/egress traffic will be handled every 100 ms.
+ */
+void* client_refresher(void* client)
+{
+    while(1) 
+    {
+        mqtt_sync((struct mqtt_client*) client);
+        usleep(100000U);
+    }
+    return NULL;
+}
+void publish_callback(void** unused, struct mqtt_response_publish *published) 
+{
+    /* not used in this example */
+}
+
+/* BME680 functions */
 
 // open the Linux device
 void i2cOpen()
@@ -164,8 +195,27 @@ int64_t get_timestamp_us()
   return system_current_time_us;
 }
 
+void send_data(struct tm tm, float iaq, uint8_t iaq_accuracy, float temperature, 
+               float humidity, float pressure, float gas, float co2_equivalent, 
+               float breath_voc_equivalent, bsec_library_return_t bsec_status)
+ {
+   char* message;
+   int mcnt = asprintf(&message,"{\"sensor_id\": %s, \"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, \"IAQ\": %.2f, \"iaq_accuracy\": %d, \"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f, \"gas_resistance\": %.0f, \"bVOCe\": %.2f, \"eCO2\": %.2f, \"status\": %d}",
+                        SENSOR_ID, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
+                        iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
+    if (mcnt < 0) {
+      printf(stderr, "*ERROR* asprintf failed. Data not sent.");
+    } else {
+      printf(message);
+      mqtt_publish(&client, DEF_CHAN, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
+      free(message);
+    }
+
+ }              
+
 /*
- * Handling of the ready outputs
+ * Callback handling of the BSE680 ready outputs. Sends data over MQTT channel in JSON format.
+ * After retrieving sensor data from the BSE680, it will read the PMS5003 data from the UART.
  *
  * param[in]       timestamp       time in microseconds
  * param[in]       iaq             IAQ signal
@@ -190,38 +240,29 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
                   float static_iaq, float co2_equivalent,
                   float breath_voc_equivalent)
 {
-  //int64_t timestamp_s = timestamp / 1000000000;
-  ////int64_t timestamp_ms = timestamp / 1000;
 
-  //time_t t = timestamp_s;
-  /*
-   * timestamp for localtime only makes sense if get_timestamp_us() uses
-   * CLOCK_REALTIME
-   */
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
-  printf("{\"sensor_id\": %s, ", SENSOR_ID);
-  printf("\"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, ", tm.tm_year + 1900,tm.tm_mon + 1,
-         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec); /* localtime */
-  printf("\"IAQ\": %.2f, \"iaq_accuracy\": %d, ",iaq, iaq_accuracy);
-  printf("\"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f,",
- 	        temperature, humidity, pressure / 100);
-  printf("\"gas_resistance\": %.0f, ", gas);
-  printf("\"bVOCe\": %.2f, ", breath_voc_equivalent);
-  printf("\"eCO2\": %.2f, ", co2_equivalent);
-  printf("\"status\": %d}", bsec_status);
 
-  //printf("%d-%02d-%02d %02d:%02d:%02d,", tm.tm_year + 1900,tm.tm_mon + 1,
-  //       tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec); /* localtime */
-  //printf("[IAQ (%d)]: %.2f", iaq_accuracy, iaq);
-  //printf(",[T degC]: %.2f,[H %%rH]: %.2f,[P hPa]: %.2f", temperature,
-  //       humidity,pressure / 100);
-  //printf(",[eCO2 ppm]: %.2f", co2_equivalent);
-  //printf(",[static IAQ]: %.2f", static_iaq);
-  //printf(",[eCO2 ppm]: %.2f", co2_equivalent);
-  //printf(",[bVOCe ppm]: %.2f", breath_voc_equivalent);
-  //printf(",%" PRId64, timestamp);
-  //printf(",%" PRId64, timestamp_ms);
+  /* TODO - read pms5003 output here */
+  /*
+   * Send the data out the MQTT channel
+   * 
+   * Note: to create the JSON string I wanted to use the safer asprintf function. 
+   * However on the Raspian (Jessie) the function does not work correctly
+   * for the format string shown below. The numeric values where wrong after the time parameters.
+   * The exact same format string works fine with sprintf.
+   */ 
+  char message[1024]; //over kill
+  sprintf(message,
+           "{\"sensor_id\": %s, \"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, \"IAQ\": %.2f, \"iaq_accuracy\": %d, \"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f, \"gas_resistance\": %.0f, \"bVOCe\": %.2f, \"eCO2\": %.2f, \"status\": %d}",
+                      SENSOR_ID, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
+                      iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
+  int mcnt = strlen(message);
+  mqtt_publish(&client, DEF_CHAN, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
+  
+  /* for debuging */
+  printf(message);
   printf("\r\n");
   fflush(stdout);
 }
@@ -320,8 +361,21 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
    * Apparently skipping the first 4 bytes works fine.
    *
    */
-  rslt = binary_load(config_buffer, n_buffer, filename_config, 4);
+  rslt = binary_load(config_buffer, n_buffer, filename_iaq_config, 4);
   return rslt;
+}
+
+/* Other functions */
+
+/**
+ * @brief Safelty closes the sockfd, I2C and cancels the client_daemon before exit. 
+ */
+void exit_airsense(int status, int sockfd, pthread_t *client_daemon)
+{
+    if (sockfd != -1) close(sockfd);
+    if (client_daemon != NULL) pthread_cancel(*client_daemon);
+    i2cClose();
+    exit(status);
 }
 
 /* main */
@@ -332,15 +386,73 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  *
  * return      result of the processing
  */
-int main()
+int main(int argc, const char *argv[])
 {
   //putenv(DESTZONE); // Switch to destination time zone
-
-  i2cOpen();
-  i2cSetAddress(i2c_address);
-
+  const char* addr;
+  const char* port;
+  const char* topic;
   return_values_init ret;
 
+  /*
+   * Get MQTT parms from args. TODO repace with config file
+   */
+    if (argc > 1) {
+        addr = argv[1];
+    } else {
+        addr = DEF_ADDR;
+    }
+
+    if (argc > 2) {
+        port = argv[2];
+    } else {
+        port = DEF_PORT;
+    }
+
+    if (argc > 3) {
+        topic = argv[3];
+    } else {
+        topic = DEF_CHAN;
+    }
+
+  /* 
+   * Open the MQTT communications
+   */
+
+  /* open the non-blocking TCP socket (connecting to the broker) */
+  int sockfd = open_nb_socket(addr, port);
+
+  if (sockfd == -1) {
+      perror("Failed to open socket: ");
+      exit_airsense(EXIT_FAILURE, sockfd, NULL);
+  }
+
+  /* setup a client */
+
+  uint8_t sendbuf[2048]; /* sendbuf should be large enough to hold multiple whole mqtt messages */
+  uint8_t recvbuf[1024]; /* recvbuf should be large enough any whole mqtt message expected to be received */
+  mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
+  mqtt_connect(&client, "publishing_client", NULL, NULL, 0, NULL, NULL, 0, 400);
+
+  /* check that we don't have any errors */
+  if (client.error != MQTT_OK) {
+      fprintf(stderr, "MQTT error: %s\n", mqtt_error_str(client.error));
+      exit_airsense(EXIT_FAILURE, sockfd, NULL);
+  }
+
+  /* start a thread to refresh the client (handle egress and ingree client traffic) */
+  pthread_t client_daemon;
+  if(pthread_create(&client_daemon, NULL, client_refresher, &client)) {
+      fprintf(stderr, "Failed to start MQTT refresh client daemon.\n");
+      exit_airsense(EXIT_FAILURE, sockfd, NULL);
+  }
+
+  /*
+   * Open the i2c channel and initialize the BME680
+   */
+  i2cOpen();
+  i2cSetAddress(i2c_address);
+  
   ret = bsec_iot_init(sample_rate_mode, temp_offset, bus_write, bus_read,
                       _sleep, state_load, config_load);
   if (ret.bme680_status) {
