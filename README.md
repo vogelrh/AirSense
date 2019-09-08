@@ -13,33 +13,29 @@ by [Liam Bindle](https://github.com/LiamBindle/MQTT-C) and a PMS5003 sensor libr
 
 ## Intro
 
-Working example of fully using the
-[BME680 sensor](https://www.bosch-sensortec.com/en/bst/products/all_products/bme680)
-on Linux (e.g. Raspberry Pi) with the precompiled
-[BSEC library](https://www.bosch-sensortec.com/bst/products/all_products/bsec),
-which allows to read calibrated environment values including an actual Indoor
-Air Quality (IAQ) score.
+This app is designed to run on a Linxu SOC such as the Raspberry Pi Zero and will continously send air quality data from the 
+[BME680 sensor](https://www.bosch-sensortec.com/en/bst/products/all_products/bme680) and the [Plantower PMS5003](http://www.aqmd.gov/docs/default-source/aq-spec/resources-page/plantower-pms5003-manual_v2-3.pdf) sensor across a MQTT channel.
 
-It makes use of
-[Bosch's provided driver](https://github.com/BoschSensortec/BME680_driver)
-and can be configured in terms of it.
-Readings will be directly output to stdout in a loop.
+For the BME680 sensor, it utilizes the
+[BSEC library](https://www.bosch-sensortec.com/bst/products/all_products/bsec),
+which reads calibrated environment values including an actual Indoor Air Quality (IAQ) score, and it makes use of a
+[Bosch's provided driver](https://github.com/BoschSensortec/BME680_driver).
 
 ## Prerequisites
 
-[Download the BSEC software package from Bosch](https://www.bosch-sensortec.com/bst/products/all_products/bsec)
-and put it into `./src`, then unpack.
+After cloning this project, first create a directory `vendor_src`. Then download the
+[dBSEC software package from Bosch](https://www.bosch-sensortec.com/bst/products/all_products/bsec)
+and unpack it into `./vendor_src`. Nex download the [MQTT library](https://github.com/LiamBindle/MQTT-C) from github as a zip file and also unpack it into the `.vendor_src` directory.
 
 ## Configure and Compile
 
-Optionally make changes to make.config.
+Optionally make changes to `make.config`. Change the `ARCH` parameter for different host architectures, while the `CONFIG` parameter determines the library configuration. (See the BSEC Integration Guide for more details).
 
-Depending on how your sensor is embedded it might be surrounded by other
-components giving off heat. Use an offset in °C in `bsec_bme680.c` to
-compensate. The default is 5 °C:
+Depending on how your sensor is embedded it might be surrounded by other components giving off heat. Use an offset in °C in `airsense.c` to compensate. The default is 5 °C:
 ```
 #define temp_offset (5.0f)
 ```
+XXX LEFT OFF HERE
 
 To compile: `./make.sh`
 
