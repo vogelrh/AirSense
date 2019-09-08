@@ -23,6 +23,11 @@ if [ ! -f "${STATEFILE}" ]; then
   touch "${STATEFILE}"
 fi
 
+BIN_DIR="${CONFIG_DIR}/bin"
+if [ ! -d "${BIN_DIR}" ]; then
+  mkdir "${BIN_DIR}"
+fi
+
 echo 'Patching...'
 dir="${BSEC_DIR}/examples"
 patch='patches/eCO2+bVOCe.diff'
@@ -46,10 +51,11 @@ cc -Wall -Wno-unused-but-set-variable -Wno-unused-variable -static \
   "${BSEC_DIR}"/examples/bsec_integration.c \
   "${MQTT_DIR}"/src/mqtt_pal.c \
   "${MQTT_DIR}"/src/mqtt.c \
+  ./pms5003.c \
   ./airsense.c \
   -L"${BSEC_DIR}"/algo/"${ARCH}" -lalgobsec \
   -lm -lrt -lpthread \
-  -o airsense
+  -o "${BIN_DIR}/airsense"
 echo 'Compiled.'
 
 cp "${BSEC_DIR}"/config/"${CONFIG}"/bsec_iaq.config "${CONFIG_DIR}"/

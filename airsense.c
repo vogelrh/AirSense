@@ -28,16 +28,18 @@
 #include <mqtt.h>
 #include <posix_sockets.h>
 #include "bsec_integration.h"
+#include "pms5003.h"
 
 /* definitions  Ultimately we want these in a config file*/
 
-#define DESTZONE "TZ=EDT"
+//#define DESTZONE "TZ=EDT"
 #define temp_offset (5.0f)
 #define sample_rate_mode (BSEC_SAMPLE_RATE_LP)
 #define SENSOR_ID "PiAirQ01"
 #define DEF_ADDR "192.168.1.127"
 #define DEF_PORT "1883"
 #define DEF_CHAN "AirSenseData"
+#define SAMPLE_MULTIPLIER 2 //sample rate = SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
 
 int g_i2cFid; // I2C Linux device handle
 int i2c_address = BME680_I2C_ADDR_SECONDARY;
@@ -45,6 +47,24 @@ char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
 char *filename_config = "airsense.config";
 struct mqtt_client client; //MQTT client
+int sample_count = SAMPLE_MULTIPLIER;
+
+
+/*
+ * System specific implementation of sleep function
+ *
+ * param[in]       t_ms    time in milliseconds
+ *
+ * return          none
+ */
+void _sleep(uint32_t t_ms)
+{
+  struct timespec ts;
+  ts.tv_sec = 0;
+  /* mod because nsec must be in the range 0 to 999999999 */
+  ts.tv_nsec = (t_ms % 1000) * 1000000L;
+  nanosleep(&ts, NULL);
+}
 
 /* MQTT functions */
 
@@ -55,19 +75,20 @@ struct mqtt_client client; //MQTT client
  * @note All this function needs to do is call \ref __mqtt_recv and 
  *       \ref __mqtt_send every so often. I've picked 100 ms meaning that 
  *       client ingress/egress traffic will be handled every 100 ms.
+ *       Also replaced usleep with the local function _sleep
  */
 void* client_refresher(void* client)
 {
     while(1) 
     {
         mqtt_sync((struct mqtt_client*) client);
-        usleep(100000U);
+        _sleep(50);
     }
     return NULL;
 }
 void publish_callback(void** unused, struct mqtt_response_publish *published) 
 {
-    /* not used in this example */
+    /* not used for this app */
 }
 
 /* BME680 functions */
@@ -161,22 +182,6 @@ int8_t bus_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *reg_data_ptr,
 }
 
 /*
- * System specific implementation of sleep function
- *
- * param[in]       t_ms    time in milliseconds
- *
- * return          none
- */
-void _sleep(uint32_t t_ms)
-{
-  struct timespec ts;
-  ts.tv_sec = 0;
-  /* mod because nsec must be in the range 0 to 999999999 */
-  ts.tv_nsec = (t_ms % 1000) * 1000000L;
-  nanosleep(&ts, NULL);
-}
-
-/*
  * Capture the system time in microseconds
  *
  * return          system_current_time    system timestamp in microseconds
@@ -194,17 +199,17 @@ int64_t get_timestamp_us()
 
   return system_current_time_us;
 }
-
+/*
 void send_data(struct tm tm, float iaq, uint8_t iaq_accuracy, float temperature, 
                float humidity, float pressure, float gas, float co2_equivalent, 
-               float breath_voc_equivalent, bsec_library_return_t bsec_status)
+               float breath_voc_equivalent, bsec_library_return_t bsec_status, )
  {
    char* message;
-   int mcnt = asprintf(&message,"{\"sensor_id\": %s, \"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, \"IAQ\": %.2f, \"iaq_accuracy\": %d, \"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f, \"gas_resistance\": %.0f, \"bVOCe\": %.2f, \"eCO2\": %.2f, \"status\": %d}",
+   int mcnt = asprintf(&message,"{\"sensor_id\": %s, \"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, \"IAQ\": %.2f, \"iaq_accuracy\": %d, \"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f, \"gas_resistance\": %.0f, \"bVOCe\": %.2f, \"eCO2\": %.2f, \"bse_status\": %d, \"pm1cf\": %d, \"pm2_5cf\": %d, \"pm10cf\": %d, \"pm1at\": %d, \"pm2_5at\": %d, \"pm10at\": %d, \"gt0_3\": %d, \"gt0_5\": %d, \"gt1\": %d, \"gt2_5\": %d, \"gt5\": %d, \"gt10\": %d, \"pms_status\": %d}",
                         SENSOR_ID, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                         iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
     if (mcnt < 0) {
-      printf(stderr, "*ERROR* asprintf failed. Data not sent.");
+      fprintf(stderr, "*ERROR* asprintf failed. Data not sent.");
     } else {
       printf(message);
       mqtt_publish(&client, DEF_CHAN, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
@@ -212,7 +217,7 @@ void send_data(struct tm tm, float iaq, uint8_t iaq_accuracy, float temperature,
     }
 
  }              
-
+*/
 /*
  * Callback handling of the BSE680 ready outputs. Sends data over MQTT channel in JSON format.
  * After retrieving sensor data from the BSE680, it will read the PMS5003 data from the UART.
@@ -241,10 +246,20 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
                   float breath_voc_equivalent)
 {
 
+  // Is it time to output?
+  sample_count++;
+  if (sample_count < SAMPLE_MULTIPLIER) {
+    return;
+  }
+  sample_count = 0;
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
 
-  /* TODO - read pms5003 output here */
+  PMS5003_DATA  pms;
+  int pstat = read_pms5003_data(&pms);
+  if (pstat != UART_OK) {
+    output_uart_code(pstat);
+  }
   /*
    * Send the data out the MQTT channel
    * 
@@ -253,11 +268,13 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
    * for the format string shown below. The numeric values where wrong after the time parameters.
    * The exact same format string works fine with sprintf.
    */ 
-  char message[1024]; //over kill
+  char message[2048]; //over kill
   sprintf(message,
-           "{\"sensor_id\": %s, \"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, \"IAQ\": %.2f, \"iaq_accuracy\": %d, \"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f, \"gas_resistance\": %.0f, \"bVOCe\": %.2f, \"eCO2\": %.2f, \"status\": %d}",
+           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"gas_resistance\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bse_status\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pms_status\":%d}",
                       SENSOR_ID, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
-                      iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
+                      iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status,
+                      pms.pm1cf, pms.pm2_5cf, pms.pm10cf, pms.pm1at, pms.pm2_5at, pms.pm10at, pms.gt0_3,
+                      pms.gt0_5, pms.gt1, pms.gt2_5, pms.gt5, pms.gt10, pstat);
   int mcnt = strlen(message);
   mqtt_publish(&client, DEF_CHAN, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
   
@@ -375,6 +392,7 @@ void exit_airsense(int status, int sockfd, pthread_t *client_daemon)
     if (sockfd != -1) close(sockfd);
     if (client_daemon != NULL) pthread_cancel(*client_daemon);
     i2cClose();
+    pms_close();
     exit(status);
 }
 
@@ -452,7 +470,14 @@ int main(int argc, const char *argv[])
    */
   i2cOpen();
   i2cSetAddress(i2c_address);
-  
+  /**
+   * Open the UART using default serial0 @9600 baud.
+   */
+  int ustat = pms_init();
+  if (ustat != UART_OK) {
+    output_uart_code(ustat);
+    exit_airsense(EXIT_FAILURE, sockfd, NULL);
+  }
   ret = bsec_iot_init(sample_rate_mode, temp_offset, bus_write, bus_read,
                       _sleep, state_load, config_load);
   if (ret.bme680_status) {

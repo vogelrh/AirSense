@@ -3,7 +3,13 @@
 A Linux C-based application that periodically reads air quality data from two sensors (Bosh BME680 & Plantower PMS5003) and
 sends the data across a MQTT channel.
 
-Read the BME680 sensor with the BSEC library on Linux (e.g. Raspberry Pi)
+The app reads the BME680 sensor with the BSEC library on Linux (e.g. Raspberry Pi) and reads the PMS5003 sensor
+with a custom library included in the project.
+
+## Credit
+This project is a fork of [alexh.name](https://github.com/alexh-name/bsec_bme680_linux) with the addition of a MQTT libary
+by [Liam Bindle](https://github.com/LiamBindle/MQTT-C) and a PMS5003 sensor library developed by myself.
+
 
 ## Intro
 
