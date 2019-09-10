@@ -35,17 +35,17 @@
 //#define DESTZONE "TZ=EDT"
 #define temp_offset (5.0f)
 #define sample_rate_mode (BSEC_SAMPLE_RATE_LP)
-#define SENSOR_ID "PiAirQ01"
+#define DEF_SENSOR_ID "PiAirQ01"
 #define DEF_ADDR "192.168.1.127"
 #define DEF_PORT "1883"
 #define DEF_CHAN "AirSenseData"
 #define SAMPLE_MULTIPLIER 2 //sample rate = SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
 
 int g_i2cFid; // I2C Linux device handle
-int i2c_address = BME680_I2C_ADDR_SECONDARY;
+int i2c_address;
+const char* sensor_id;
 char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
-char *filename_config = "airsense.config";
 struct mqtt_client client; //MQTT client
 int sample_count = SAMPLE_MULTIPLIER;
 
@@ -199,25 +199,7 @@ int64_t get_timestamp_us()
 
   return system_current_time_us;
 }
-/*
-void send_data(struct tm tm, float iaq, uint8_t iaq_accuracy, float temperature, 
-               float humidity, float pressure, float gas, float co2_equivalent, 
-               float breath_voc_equivalent, bsec_library_return_t bsec_status, )
- {
-   char* message;
-   int mcnt = asprintf(&message,"{\"sensor_id\": %s, \"time_stamp\": %d-%02d-%02d %02d:%02d:%02d, \"IAQ\": %.2f, \"iaq_accuracy\": %d, \"temperature\": %.2f, \"humidity\": %.2f, \"pressure\": %.2f, \"gas_resistance\": %.0f, \"bVOCe\": %.2f, \"eCO2\": %.2f, \"bse_status\": %d, \"pm1cf\": %d, \"pm2_5cf\": %d, \"pm10cf\": %d, \"pm1at\": %d, \"pm2_5at\": %d, \"pm10at\": %d, \"gt0_3\": %d, \"gt0_5\": %d, \"gt1\": %d, \"gt2_5\": %d, \"gt5\": %d, \"gt10\": %d, \"pms_status\": %d}",
-                        SENSOR_ID, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
-                        iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
-    if (mcnt < 0) {
-      fprintf(stderr, "*ERROR* asprintf failed. Data not sent.");
-    } else {
-      printf(message);
-      mqtt_publish(&client, DEF_CHAN, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
-      free(message);
-    }
 
- }              
-*/
 /*
  * Callback handling of the BSE680 ready outputs. Sends data over MQTT channel in JSON format.
  * After retrieving sensor data from the BSE680, it will read the PMS5003 data from the UART.
@@ -271,7 +253,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   char message[2048]; //over kill
   sprintf(message,
            "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"gas_resistance\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bse_status\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pms_status\":%d}",
-                      SENSOR_ID, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
+                      sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                       iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status,
                       pms.pm1cf, pms.pm2_5cf, pms.pm10cf, pms.pm1at, pms.pm2_5at, pms.pm10at, pms.gt0_3,
                       pms.gt0_5, pms.gt1, pms.gt2_5, pms.gt5, pms.gt10, pstat);
@@ -402,6 +384,12 @@ void exit_airsense(int status, int sockfd, pthread_t *client_daemon)
  * Main function which configures BSEC library and then reads and processes
  * the data from sensor based on timer ticks
  *
+ * Program Arguments (all are optional)
+ * argv[1] - 1 or 0 (default: 0). If 1 use the BME680 secondary I2C address.
+ * argv[2] - address of MQTT server (default: 192.168.1.127).
+ * argv[3] - port of MQTT server (default: 1883)
+ * argv[4] - MQTT channel name (default: AirSenseData)
+ * argv[5] - ID of sensor (default: PiAirQ01)
  * return      result of the processing
  */
 int main(int argc, const char *argv[])
@@ -410,27 +398,45 @@ int main(int argc, const char *argv[])
   const char* addr;
   const char* port;
   const char* topic;
+  int use_secondary = 0;
+
   return_values_init ret;
 
   /*
-   * Get MQTT parms from args. TODO repace with config file
+   * Get alternate I2C address and MQTT parms from args. TODO repace with config file
    */
+  
     if (argc > 1) {
-        addr = argv[1];
+      if (argv[1] != 0 ) {
+        i2c_address = BME680_I2C_ADDR_SECONDARY;
+      } else {
+        i2c_address = BME680_I2C_ADDR_PRIMARY;
+      }
     } else {
-        addr = DEF_ADDR;
+      i2c_address = BME680_I2C_ADDR_PRIMARY;
     }
 
     if (argc > 2) {
-        port = argv[2];
+        addr = argv[2];
+    } else {
+        addr = DEF_ADDR;
+    }
+    if (argc > 3) {
+        port = argv[3];
     } else {
         port = DEF_PORT;
     }
 
-    if (argc > 3) {
-        topic = argv[3];
+    if (argc > 4) {
+        topic = argv[4];
     } else {
         topic = DEF_CHAN;
+    }
+
+    if (argc > 5) {
+        sensor_id = argv[5];
+    } else {
+        sensor_id = DEF_SENSOR_ID;
     }
 
   /* 

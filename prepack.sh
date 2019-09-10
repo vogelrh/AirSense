@@ -20,7 +20,7 @@ VERSION='normal_version'
 BASE_ARCH='RaspberryPI'
 
 # Sub architecture e.g. PiZero_ArmV6-32bits
-SUB_ARCH='PiThree_ArmV8-a-64bits' #'PiZero_ArmV6-32bits'
+SUB_ARCH='PiZero_ArmV6-32bits'
 
 # CONFIG is the BSEC configuration file
 CONFIG='generic_33v_3s_4d'
@@ -65,18 +65,19 @@ if [ ! -d ./bin ]; then
   mkdir ./bin
 fi
 
-cc -Wall -Wno-unused-but-set-variable -Wno-unused-variable -static \
-  -std=c99 -pedantic \
--isystem"." \
-./bme680.c \
-./bsec_integration.c \
-./mqtt_pal.c \
-./mqtt.c \
-./pms5003.c \
-./airsense.c \
--L"." -lalgobsec \
--lm -lrt -lpthread \
--o bin/airsense
+cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter \
+ -Wno-unused-variable -Wno-duplicate-decl-specifier -Wno-pointer-arith \
+ -std=gnu99 -pedantic \
+ -isystem"." \
+ ./bme680.c \
+ ./bsec_integration.c \
+ ./mqtt_pal.c \
+ ./mqtt.c \
+ ./pms5003.c \
+ ./airsense.c \
+ -L"." -lalgobsec \
+ -lm -lrt -lpthread \
+ -o bin/airsense
 
 cp ./bsec_iaq.config ./bin
 touch ./bin/bsec_iaq.state

@@ -40,8 +40,9 @@ else
 fi
 
 echo 'Compiling...'
-cc -Wall -Wno-unused-but-set-variable -Wno-unused-variable -static \
-  -std=c99 -pedantic \
+cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter \
+  -Wno-unused-variable -Wno-duplicate-decl-specifier -Wno-pointer-arith \
+  -std=gnu99 -pedantic \
   -iquote"${BSEC_DIR}"/API \
   -iquote"${BSEC_DIR}"/algo/${ARCH} \
   -iquote"${BSEC_DIR}"/examples \
