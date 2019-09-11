@@ -41,7 +41,7 @@ fi
 
 echo 'Compiling...'
 cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter \
-  -Wno-unused-variable -Wno-duplicate-decl-specifier -Wno-pointer-arith \
+  -Wno-unused-variable -Wno-pointer-arith \
   -std=gnu99 -pedantic \
   -iquote"${BSEC_DIR}"/API \
   -iquote"${BSEC_DIR}"/algo/${ARCH} \

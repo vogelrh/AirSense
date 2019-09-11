@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <time.h>
 #include <fcntl.h>
 #include <string.h>
@@ -38,17 +39,20 @@
 #define DEF_SENSOR_ID "PiAirQ01"
 #define DEF_ADDR "192.168.1.127"
 #define DEF_PORT "1883"
-#define DEF_CHAN "AirSenseData"
-#define SAMPLE_MULTIPLIER 2 //sample rate = SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
+#define DEF_TOPIC "AirSenseData"
+#define DEF_SAMPLE_MULTIPLIER 2 //sample rate = DEF_SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
 
 int g_i2cFid; // I2C Linux device handle
 int i2c_address;
 const char* sensor_id;
+const char* topic;
 char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
 struct mqtt_client client; //MQTT client
-int sample_count = SAMPLE_MULTIPLIER;
-
+int sample_count;
+int sample_multiplier;
+int debug = 0;
+int disable5003 = 0;
 
 /*
  * System specific implementation of sleep function
@@ -230,17 +234,20 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
 
   // Is it time to output?
   sample_count++;
-  if (sample_count < SAMPLE_MULTIPLIER) {
+  if (sample_count < sample_multiplier) {
     return;
   }
   sample_count = 0;
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
+  int pstat;
 
-  PMS5003_DATA  pms;
-  int pstat = read_pms5003_data(&pms);
-  if (pstat != UART_OK) {
-    output_uart_code(pstat);
+  PMS5003_DATA  pms = {0};
+  if (!disable5003) {
+    pstat = read_pms5003_data(&pms);
+    if (pstat != UART_OK) {
+      output_uart_code(pstat);
+    }
   }
   /*
    * Send the data out the MQTT channel
@@ -251,19 +258,30 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
    * The exact same format string works fine with sprintf.
    */ 
   char message[2048]; //over kill
-  sprintf(message,
+  if (disable5003) {
+    sprintf(message,
+           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"gas_resistance\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bse_status\":%d}",
+                      sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
+                      iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
+
+  } else {
+    sprintf(message,
            "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"gas_resistance\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bse_status\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pms_status\":%d}",
                       sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                       iaq, iaq_accuracy, temperature, humidity, pressure / 100, gas, breath_voc_equivalent, co2_equivalent, bsec_status,
                       pms.pm1cf, pms.pm2_5cf, pms.pm10cf, pms.pm1at, pms.pm2_5at, pms.pm10at, pms.gt0_3,
                       pms.gt0_5, pms.gt1, pms.gt2_5, pms.gt5, pms.gt10, pstat);
+
+  }
   int mcnt = strlen(message);
-  mqtt_publish(&client, DEF_CHAN, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
+  mqtt_publish(&client, topic, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
   
   /* for debuging */
-  printf(message);
-  printf("\r\n");
-  fflush(stdout);
+  if (debug) {
+    printf(message);
+    printf("\r\n");
+    fflush(stdout);
+  }
 }
 
 /*
@@ -382,61 +400,79 @@ void exit_airsense(int status, int sockfd, pthread_t *client_daemon)
 
 /*
  * Main function which configures BSEC library and then reads and processes
- * the data from sensor based on timer ticks
+ * the data from both sensors at a specified rate and sends the data across
+ * a MQTT channel.
  *
- * Program Arguments (all are optional)
- * argv[1] - 1 or 0 (default: 0). If 1 use the BME680 secondary I2C address.
- * argv[2] - address of MQTT server (default: 192.168.1.127).
- * argv[3] - port of MQTT server (default: 1883)
- * argv[4] - MQTT channel name (default: AirSenseData)
- * argv[5] - ID of sensor (default: PiAirQ01)
- * return      result of the processing
+ * Program Arguments (all are optional, defaults will be used.)
+ * -s             -- Use the BME680 secondary I2C address.
+ * -d             -- Debug mode, writes output to stdout.
+ * -u             -- Disable the pms5003 sensor. Only output date from the BSE680.
+ * -b <addres>    -- the address of the MQTT broker/server (default: 192.168.1.127).
+ * -p <port>      -- the port number of the MQTT broker/server (default: 1883)
+ * -t <topic>     -- the MQTT channel name (default: AirSenseData)
+ * -i <sensor id> -- the id of the sensor
+ * -m <number>    -- Message output rate as a multiplier of the intrinsic BSEC sampling rate.
+ *                   a value of 1 would send data at the intrinsic sampling rate while as
+ *                   value of 2 would send data at twice the intrinsic sampling rate. (default 
+ *                   is 2 which is every 6 seconds for the default BSEC configuration)
+ * 
+ * return      result of the processing. Note only returns on fatal error.
  */
-int main(int argc, const char *argv[])
+int main(int argc, char **argv)
 {
   //putenv(DESTZONE); // Switch to destination time zone
-  const char* addr;
-  const char* port;
-  const char* topic;
-  int use_secondary = 0;
-
+  int opt;
+  const char* broker = DEF_ADDR ;
+  const char* port = DEF_PORT;
+  topic = DEF_TOPIC;
+  i2c_address = BME680_I2C_ADDR_PRIMARY;
+  size_t len;
+  char mname[256];
+  gethostname(mname, sizeof(mname));
+  sensor_id = mname;
+  sample_count = DEF_SAMPLE_MULTIPLIER;
+  sample_multiplier = DEF_SAMPLE_MULTIPLIER;
   return_values_init ret;
 
   /*
-   * Get alternate I2C address and MQTT parms from args. TODO repace with config file
+   * Parse the input parameters
    */
-  
-    if (argc > 1) {
-      if (argv[1] != 0 ) {
+  while((opt = getopt(argc, argv, "sdub:p:t:i:m:")) != -1)
+    switch(opt) 
+    {
+      case 's':
         i2c_address = BME680_I2C_ADDR_SECONDARY;
-      } else {
-        i2c_address = BME680_I2C_ADDR_PRIMARY;
-      }
-    } else {
-      i2c_address = BME680_I2C_ADDR_PRIMARY;
-    }
-
-    if (argc > 2) {
-        addr = argv[2];
-    } else {
-        addr = DEF_ADDR;
-    }
-    if (argc > 3) {
-        port = argv[3];
-    } else {
-        port = DEF_PORT;
-    }
-
-    if (argc > 4) {
-        topic = argv[4];
-    } else {
-        topic = DEF_CHAN;
-    }
-
-    if (argc > 5) {
-        sensor_id = argv[5];
-    } else {
-        sensor_id = DEF_SENSOR_ID;
+        break;
+      case 'd':
+        debug = 1;
+        break;
+      case 'u':
+        disable5003 = 1;
+        break;
+      case 'b':
+        broker = optarg;
+        break;
+      case 'p':
+        port = optarg;
+        break;
+      case 't':
+        topic = optarg;
+        break;
+      case 'i':
+        sensor_id = optarg;
+        break;
+      case 'm':
+        sample_multiplier = atoi(optarg);
+        break;
+      case '?':
+        if (optopt == 'b' || optopt == 'p' || optopt == 't' || optopt == 'i' || optopt == 'm')
+          fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+        else if (isprint(optopt))
+            fprintf(stderr, "Unknown option `-%c'.\n", optopt);
+        else
+            fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+        
+        return 1; //abort on option errors
     }
 
   /* 
@@ -444,7 +480,7 @@ int main(int argc, const char *argv[])
    */
 
   /* open the non-blocking TCP socket (connecting to the broker) */
-  int sockfd = open_nb_socket(addr, port);
+  int sockfd = open_nb_socket(broker, port);
 
   if (sockfd == -1) {
       perror("Failed to open socket: ");
@@ -479,11 +515,15 @@ int main(int argc, const char *argv[])
   /**
    * Open the UART using default serial0 @9600 baud.
    */
-  int ustat = pms_init();
-  if (ustat != UART_OK) {
-    output_uart_code(ustat);
-    exit_airsense(EXIT_FAILURE, sockfd, NULL);
+  if (!disable5003) {
+    int ustat = pms_init();
+    if (ustat != UART_OK) {
+      output_uart_code(ustat);
+      exit_airsense(EXIT_FAILURE, sockfd, NULL);
+    }
   }
+
+  // initalize the bsec library
   ret = bsec_iot_init(sample_rate_mode, temp_offset, bus_write, bus_read,
                       _sleep, state_load, config_load);
   if (ret.bme680_status) {

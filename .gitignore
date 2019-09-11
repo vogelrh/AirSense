@@ -1,5 +1,7 @@
 vendor_src
 bin
 prepack
+bsec_iaq.config
+bsec_iaq.state
 
 
