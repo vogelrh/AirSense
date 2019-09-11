@@ -36,7 +36,8 @@
 //#define DESTZONE "TZ=EDT"
 #define temp_offset (5.0f)
 #define sample_rate_mode (BSEC_SAMPLE_RATE_LP)
-#define DEF_ADDR "test.mosquitto.org"
+#define DEF_SENSOR_ID "PiAirQ01"
+#define DEF_ADDR "192.168.1.127"
 #define DEF_PORT "1883"
 #define DEF_TOPIC "AirSenseData"
 #define DEF_SAMPLE_MULTIPLIER 2 //sample rate = DEF_SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
@@ -421,7 +422,7 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  * -s             -- Use the BME680 secondary I2C address.
  * -d             -- Debug mode, writes output to stdout.
  * -u             -- Disable the pms5003 sensor. Only output date from the BSE680.
- * -b <addres>    -- the address of the MQTT broker/server (default: test.mosquitto.org).
+ * -b <addres>    -- the address of the MQTT broker/server (default: 192.168.1.127).
  * -p <port>      -- the port number of the MQTT broker/server (default: 1883)
  * -t <topic>     -- the MQTT channel name (default: AirSenseData)
  * -i <sensor id> -- the id of the sensor
