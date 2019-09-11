@@ -275,6 +275,12 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   int mcnt = strlen(message);
   mqtt_publish(&client, topic, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
   
+  // check for errors
+  if (client.error != MQTT_OK) {
+    fprintf(stderr, "MQTT error: %s\n", mqtt_error_str(client.error));
+    exit_airsense(EXIT_FAILURE, sockfd, NULL);   
+  }
+
   /* for debuging */
   if (debug) {
     printf(message);
