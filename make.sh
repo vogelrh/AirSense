@@ -40,7 +40,7 @@ else
 fi
 
 echo 'Compiling...'
-cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter \
+cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-duplicate-decl-specifier \
   -Wno-unused-variable -Wno-pointer-arith \
   -std=gnu99 -pedantic \
   -iquote"${BSEC_DIR}"/API \
