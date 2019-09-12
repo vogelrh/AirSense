@@ -52,7 +52,7 @@ int sample_count;
 int sample_multiplier;
 int debug = 0;
 int disable5003 = 0;
-
+int sockfd;
 /*
  * System specific implementation of sleep function
  *
@@ -68,34 +68,6 @@ void _sleep(uint32_t t_ms)
   ts.tv_nsec = (t_ms % 1000) * 1000000L;
   nanosleep(&ts, NULL);
 }
-
-/* MQTT functions */
-
-/**
- * @brief Liam Bindle's client's refresher function. This function triggers back-end routines to 
- *        handle ingress/egress traffic to the broker.
- * 
- * @note All this function needs to do is call \ref __mqtt_recv and 
- *       \ref __mqtt_send every so often. I've picked 100 ms meaning that 
- *       client ingress/egress traffic will be handled every 100 ms.
- *       Also replaced usleep with the local function _sleep
- */
-void* client_refresher(void* client)
-{
-    while(1) 
-    {
-        mqtt_sync((struct mqtt_client*) client);
-        _sleep(50);
-    }
-    return NULL;
-}
-void publish_callback(void** unused, struct mqtt_response_publish *published) 
-{
-    /* not used for this app */
-}
-
-/* BME680 functions */
-
 // open the Linux device
 void i2cOpen()
 {
@@ -120,6 +92,49 @@ void i2cSetAddress(int address)
     exit(1);
   }
 }
+/**
+ * @brief Safelty closes the sockfd, I2C and cancels the client_daemon before exit. 
+ */
+void exit_airsense(int status, int sockfd, pthread_t *client_daemon)
+{
+    if (sockfd != -1) close(sockfd);
+    if (client_daemon != NULL) pthread_cancel(*client_daemon);
+    i2cClose();
+    pms_close();
+    fprintf(stderr,"Exiting with status %d", status);
+    exit(status);
+}
+/* MQTT functions */
+
+/**
+ * @brief Liam Bindle's client's refresher function. This function triggers back-end routines to 
+ *        handle ingress/egress traffic to the broker.
+ * 
+ * @note All this function needs to do is call \ref __mqtt_recv and 
+ *       \ref __mqtt_send every so often. I've picked 100 ms meaning that 
+ *       client ingress/egress traffic will be handled every 100 ms.
+ *       Also replaced usleep with the local function _sleep
+ */
+void* client_refresher(void* client)
+{
+    while(1) 
+    {
+        mqtt_sync((struct mqtt_client*) client);
+        _sleep(50);
+    }
+    return NULL;
+}
+void publish_callback(void** unused, struct mqtt_response_publish *published) 
+{
+    /* not used for this app */
+    if (debug) {
+      printf("** publish_callback called **\nDup: %d\nQOS level: %d\nRetain: %d\n", 
+             published->dup_flag, published->qos_level, published->retain_flag);
+      printf("Topic: %.*s\n****\n", published->topic_name_size, (const char*)published->topic_name);       
+    }
+}
+
+/* BME680 functions */
 
 /*
  * Write operation in either I2C or SPI
@@ -230,7 +245,9 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
                   float static_iaq, float co2_equivalent,
                   float breath_voc_equivalent)
 {
-
+  if (debug) {
+    printf("Output ready\n");
+  }
   // Is it time to output?
   sample_count++;
   if (sample_count < sample_multiplier) {
@@ -273,8 +290,13 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
 
   }
   int mcnt = strlen(message);
-  mqtt_publish(&client, topic, message, mcnt + 1, MQTT_PUBLISH_QOS_0);
-  
+  if (debug) {
+    printf("Ready to publish\n");
+  }
+  int stat = (int)mqtt_publish(&client, topic, message, mcnt + 1, MQTT_PUBLISH_QOS_1);
+  if (debug) {
+    printf("Publish status: %d\n", stat);
+  }
   // check for errors
   if (client.error != MQTT_OK) {
     fprintf(stderr, "MQTT error: %s\n", mqtt_error_str(client.error));
@@ -387,19 +409,6 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
   return rslt;
 }
 
-/* Other functions */
-
-/**
- * @brief Safelty closes the sockfd, I2C and cancels the client_daemon before exit. 
- */
-void exit_airsense(int status, int sockfd, pthread_t *client_daemon)
-{
-    if (sockfd != -1) close(sockfd);
-    if (client_daemon != NULL) pthread_cancel(*client_daemon);
-    i2cClose();
-    pms_close();
-    exit(status);
-}
 
 /* main */
 
@@ -479,13 +488,25 @@ int main(int argc, char **argv)
         
         return 1; //abort on option errors
     }
-
+  if (debug) {
+    const char * addr;
+    if (i2c_address == BME680_I2C_ADDR_PRIMARY) {
+      addr = "Primary";
+    } else {
+      addr = "Secondary";
+    }
+    printf("*** Application Starting ***\nI2C Address: %s\nDisable PMS5003: %d\nBroker: %s\nPort: %s",
+           addr, disable5003, broker, port);
+    printf("Topic: %s\nSensor ID: %s\nSample Multiplier: %d\n*******\n", topic, sensor_id,sample_multiplier);       
+  }
   /* 
    * Open the MQTT communications
    */
-
+  if (debug) {
+    printf("Initializing MQTT communications\n");
+  }
   /* open the non-blocking TCP socket (connecting to the broker) */
-  int sockfd = open_nb_socket(broker, port);
+  sockfd = open_nb_socket(broker, port);
 
   if (sockfd == -1) {
       perror("Failed to open socket: ");
@@ -497,7 +518,7 @@ int main(int argc, char **argv)
   uint8_t sendbuf[2048]; /* sendbuf should be large enough to hold multiple whole mqtt messages */
   uint8_t recvbuf[1024]; /* recvbuf should be large enough any whole mqtt message expected to be received */
   mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
-  mqtt_connect(&client, "publishing_client", NULL, NULL, 0, NULL, NULL, 0, 400);
+  mqtt_connect(&client, sensor_id, NULL, NULL, 0, NULL, NULL, 0, 400);
 
   /* check that we don't have any errors */
   if (client.error != MQTT_OK) {
@@ -512,6 +533,9 @@ int main(int argc, char **argv)
       exit_airsense(EXIT_FAILURE, sockfd, NULL);
   }
 
+  if (debug) {
+    printf("Initializing sensor communications\n");
+  }
   /*
    * Open the i2c channel and initialize the BME680
    */
@@ -527,7 +551,10 @@ int main(int argc, char **argv)
       exit_airsense(EXIT_FAILURE, sockfd, NULL);
     }
   }
-
+  
+  if (debug) {
+    printf("Initializing BSEC library\n");
+  }
   // initalize the bsec library
   ret = bsec_iot_init(sample_rate_mode, temp_offset, bus_write, bus_read,
                       _sleep, state_load, config_load);
@@ -539,6 +566,9 @@ int main(int argc, char **argv)
     return (int)ret.bsec_status;
   }
 
+  if (debug) {
+    printf("Entering sampling loop\n");
+  }
   /* Call to endless loop function which reads and processes data based on
    * sensor settings.
    * State is saved every 10.000 samples, which means every 10.000 * 3 secs
