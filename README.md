@@ -84,13 +84,14 @@ The JSON Object will be similar to this:
   "time_stamp": "2019-09-14 08:06:12",
   "IAQ": 95.86,
   "iaq_accuracy": 3,
-  "temperature": 24.13,
-  "humidity": 49.76,
-  "pressure": 991.71,
-  "gas_resistance": 757746,
+  "T": 24.13,
+  "RH": 49.76,
+  "P": 991.71,
+  "DI": 22,
+  "gas": 757746,
   "bVOCe": 1.23,
   "eCO2": 845.39,
-  "bse_status": 0,
+  "bstat": 0,
   "pm1cf": 4,
   "pm2_5cf": 6,
   "pm10cf": 8,
@@ -103,7 +104,7 @@ The JSON Object will be similar to this:
   "gt2_5": 4,
   "gt5": 3,
   "gt10": 1,
-  "pms_status": 0
+  "pstat": 0
 }
 ```
 If the -u flag is set then the output would be similar to the following:
@@ -113,20 +114,27 @@ If the -u flag is set then the output would be similar to the following:
   "time_stamp": "2019-09-14 08:06:13",
   "IAQ": 129.66,
   "iaq_accuracy": 1,
-  "temperature": 18.73,
-  "humidity": 75.14,
-  "pressure": 992.95,
-  "gas_resistance": 189115,
+  "T": 18.73,
+  "RH": 75.14,
+  "P": 992.95,
+  "DI": 18,
+  "gas": 189115,
   "bVOCe": 1,
   "eCO2": 707.17,
-  "bse_status": 0
+  "bstat": 0
 }
 ```
 Where:
 * IAQ - Index for Air Quality between 0 (Excellent) and 500 (Extremely Bad). 
 * iaq_accuracy - Accuracy of the IAQ score from 0 (low) to 3 (high).
-* tem
-* bse_status - Return value of the BSEC library
+* T - temperature (°C)
+* RH - relative humidity (%)
+* P - pressure (hPa)
+* DI - [Thom's Discomofort index](http://www.eurometeo.com/english/read/doc_heat) (°C) see [calculation reference](https://keisan.casio.com/exec/system/1351058230)
+* bVOCe - breath-VOC equivalents (ppm)
+* eCO2 - estimation of CO2 level (ppm)
+* bstat - Return value of the BSEC library
+* pm1cf - 
 
 It can easily be modified in the `output_ready` function.
 

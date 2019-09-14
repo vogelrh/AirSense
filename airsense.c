@@ -279,13 +279,13 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   char message[2048]; //over kill
   if (disable5003) {
     sprintf(message,
-           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"discomfort_index\":%.0f,\"gas_resistance\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bse_status\":%d}",
+           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"T\":%.2f,\"RH\":%.2f,\"P\":%.2f,\"DI\":%.0f,\"gas\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bstat\":%d}",
                       sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                       iaq, iaq_accuracy, temperature, humidity, pressure / 100, di, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
 
   } else {
     sprintf(message,
-           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"discomfort_index\":%.0f,\"gas_resistance\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bse_status\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pms_status\":%d}",
+           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"T\":%.2f,\"RH\":%.2f,\"P\":%.2f,\"DI\":%.0f,\"gas\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bstat\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pstat\":%d}",
                       sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                       iaq, iaq_accuracy, temperature, humidity, pressure / 100, di, gas, breath_voc_equivalent, co2_equivalent, bsec_status,
                       pms.pm1cf, pms.pm2_5cf, pms.pm10cf, pms.pm1at, pms.pm2_5at, pms.pm10at, pms.gt0_3,
