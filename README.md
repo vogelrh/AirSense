@@ -133,13 +133,25 @@ Where:
 * DI - [Thom's Discomofort index](http://www.eurometeo.com/english/read/doc_heat) (°C) see [calculation reference](https://keisan.casio.com/exec/system/1351058230)
 * bVOCe - breath-VOC equivalents (ppm)
 * eCO2 - estimation of CO2 level (ppm)
-* bstat - Return value of the BSEC library
-* pm1cf - 
+* bstat - return value of the BSEC library
+* pm1cf - PM1.0 ug/m3 (ultrafine particles)
+* pm2_5cf - PM2.5 ug/m3 (combustion particles, organic compounds, metals)
+* pm10cf - PM10 ug/m3  (dust, pollen, mould spores)
+* pm1at - PM1.0 ug/m3 (atmospheric env)
+* pm2_5at - PM2.5 ug/m3 (atmospheric env)
+* pm10at - PM10 ug/m3 (atmospheric env)
+* gt0_3 - > 0.3um in 0.1L air
+* gt0_5 - > 0.5um in 0.1L air
+* gt1 - > 1.0um in 0.1L air
+* gt2_5 - > 2.5um in 0.1L air
+* gt5 - > 5.0um in 0.1L air
+* gt10 - > 10um in 0.1L air
+* pstat - return value of the UART communication with the PMS5003 sensor
 
-It can easily be modified in the `output_ready` function.
+The JSON output format can easily be modified in the `output_ready` function.
 
 The BSEC library is supposed to create an internal state of calibration with
-increasing accuracy over time. Each 10.000 samples it will save the internal
+increasing accuracy over time. Each 10000 samples it will save the internal
 calibration state to `./bsec_iaq.state` (or wherever you specify the config
 directory to be) so it can pick up where it was after interruption.
 
@@ -150,8 +162,9 @@ You can find a growing list of tools to further use and visualize the data
 
 ## Troubleshooting
 
-### bsec_bme680 just quits without a message
+### AirSense just quits without a message
 
-Your bsec_iaq.state file might be corrupt or incompatible after an update of the
-BSEC library. Try (re)moving it.
+* Your bsec_iaq.state file might be corrupt or incompatible after an update of the
+BSEC library. Try (re)moving it and recreating an empty file.
+* You have multiple version of AirSense using the same sensor id value. Make sure each version has a unique id.
 
