@@ -7,7 +7,8 @@
 BSEC_DIR='./vendor_src/BSEC_1.4.7.4_Generic_Release'
 MQTT_DIR='./vendor_src/MQTT-C-master'
 PACK_DIR='./prepack'
-COPY_DIR='./prepack/temp'
+COPY_DIR='./prepack/airsense'
+TAR_DIR='airsense'
 
 #**************************************************
 # Modify the following depending on architecture 
@@ -86,11 +87,14 @@ chmod +x "${COPY_DIR}"/make.sh
 
 #create the tar ball
 echo "Creating tar ball"
-tar -czvf "${PACK_DIR}/${SUB_ARCH}/airsense_build.tar.gz" $COPY_DIR
+tar -C $PACK_DIR -czvf "${PACK_DIR}/${SUB_ARCH}/airsense.tar.gz" $TAR_DIR
+
+#cleanup
+rm -r "${COPY_DIR}"
 echo "*************************************************************************"
 echo "Packing complete"
 echo "\"scp\" the file:"
-echo "${PACK_DIR}/${SUB_ARCH}/airsense_build.tar.gz "
+echo "${PACK_DIR}/${SUB_ARCH}/airsense.tar.gz "
 echo "to the destination system."
 echo "Expand the file and execute the make.sh script."
 echo "Copy the contents of the ./bin directory to the final location on the"
