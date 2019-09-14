@@ -1,18 +1,18 @@
 # AirSense
 
-A Linux C-based application that periodically reads air quality data from two sensors (Bosh BME680 & Plantower PMS5003) and
+A Linux C application that periodically reads air quality data from two sensors (Bosh BME680 & Plantower PMS5003) and
 sends the data across a MQTT channel as a JSON object.
 
 The app reads the BME680 sensor with the BSEC library on Linux (e.g. Raspberry Pi) and reads the PMS5003 sensor with a custom library included in the project. 
 Optionally the app can be configured to only output data from the BME680 sensor.
 
 ## Credit
-This project is a fork of an [alexh.name](https://github.com/alexh-name/bsec_bme680_linux) project with the addition of a MQTT libary by [Liam Bindle](https://github.com/LiamBindle/MQTT-C) and a PMS5003 sensor library developed by myself.
+This project is a fork of an [alexh.name](https://github.com/alexh-name/bsec_bme680_linux) project with the addition of a MQTT library by [Liam Bindle](https://github.com/LiamBindle/MQTT-C) and a PMS5003 sensor library developed by myself.
 
 
 ## Intro
 
-This app is designed to run on a Linxu SoC such as the Raspberry Pi Zero and will continously send air quality data from the 
+This app is designed to run on a Linxu SoC such as the Raspberry Pi Zero and will continuously send air quality data from the 
 [BME680 sensor](https://www.bosch-sensortec.com/en/bst/products/all_products/bme680) and the [Plantower PMS5003](http://www.aqmd.gov/docs/default-source/aq-spec/resources-page/plantower-pms5003-manual_v2-3.pdf) sensor across a MQTT channel.
 
 For the BME680 sensor, it utilizes the
@@ -45,25 +45,25 @@ The bundled code will be placed in a subdirectory of the ./prepack directory. Fo
 If you have ssh set up on the target system you can send the file to the target using the `scp` command.
 
 ### Configuring `prepack.sh` for a target system.
-There are four script variables near the top of `prepack.sh` that have to be configured for a specific target system. These variables tell the script where to find the precompiled BSEC libary for the target system and the BSEC configuration to use. The variables are: 
+There are four script variables near the top of `prepack.sh` that have to be configured for a specific target system. These variables tell the script where to find the pre-compiled BSEC library for the target system and the BSEC configuration to use. The variables are: 
 
   * `VERSION` - can be either `normal_version` or `light_version`.
   * `BASE_ARCH` - the high-level target e.g. RaspberryPi, armcc, avr, etc.
   * `SUB_ARCH` - the specific system architecture e.g. PiThree_ArmV8-a-64bits or PiZero_ArmV6-32bits.
-  * `CONFIG` - the specifc BSEC configuration file to use.
+  * `CONFIG` - the specific BSEC configuration file to use.
 
-See the documentation enclosed with the BSEC code for more detail.
+See the documentation enclosed with the BSEC code for more detail about the configuration files.
 
 One final note, be sure to either execute the `make.sh` file or manually run the lines of code that patches the BSEC example code before you run the `prepack.sh` script.
 
 ## Usage
 
-The program is designed to run continously (ideally at boot). There are a number of command line options that can be used to configure the program. If you do not specify a particular option, a default value will be used. The options and their defaults are as follows:
+The program is designed to run continuously (ideally at boot). There are a number of command line options that can be used to configure the program. If you do not specify a particular option, a default value will be used. The options and their defaults are as follows:
 
 | Option |   Value    |    Description                   |
 |:-------:|:----------:|----------------------------------|
-| -s | | If specified then the secondary I2C address will be used |
-| -d | | Debug mode, writes information to `stdout`. |
+| -s | | If specified then the secondary BSE680 I2C address will be used |
+| -d | | Debug mode, writes information, including the JSON output to `stdout`. |
 | -u | | Disable the PMS5003 sensor. Only output data from the BSE630. |
 | -b | *address* | The address of the MQTT broker / server. Default: `test.mosquitto.org` |
 | -p | *port* | The port number of the MQTT broker / server. Default: `1883` |
@@ -74,13 +74,13 @@ The program is designed to run continously (ideally at boot). There are a number
 
 ### Program Output
 
-Any error messages will be written to  `stderr`. Nothing will be written to `stdout` unless the `-d` option is specifed. All sensor data will be sent across the MQTT channel as a string representation of a JSON object. *Programming note: the JSON string will contain a C string terminator (zero) at the end and must be removed from the receiving end before parsing the JSON*
+Any error messages will be written to  `stderr`. Nothing will be written to `stdout` unless the `-d` option is specified. All sensor data will be sent across the MQTT channel as a string representation of a JSON object. *Programming note: the JSON string will contain a C string terminator (zero) at the end and must be removed from the receiving end before parsing the JSON*
 
 The JSON Object will be similar to this:
 
 ```
 {
-  "sensor_id": "masterpi",
+  "sensor_id": "slavepi01",
   "time_stamp": "2019-09-14 08:06:12",
   "IAQ": 95.86,
   "iaq_accuracy": 3,
@@ -110,7 +110,7 @@ The JSON Object will be similar to this:
 If the -u flag is set then the output would be similar to the following:
 ```
 {
-  "sensor_id": "slavepi01",
+  "sensor_id": "slavepi02",
   "time_stamp": "2019-09-14 08:06:13",
   "IAQ": 129.66,
   "iaq_accuracy": 1,
@@ -130,7 +130,7 @@ Where:
 * T - temperature (°C)
 * RH - relative humidity (%)
 * P - pressure (hPa)
-* DI - [Thom's Discomofort index](http://www.eurometeo.com/english/read/doc_heat) (°C) see [calculation reference](https://keisan.casio.com/exec/system/1351058230)
+* DI - [Thom's Discomfort index](http://www.eurometeo.com/english/read/doc_heat) (°C) see [calculation reference](https://keisan.casio.com/exec/system/1351058230)
 * bVOCe - breath-VOC equivalents (ppm)
 * eCO2 - estimation of CO2 level (ppm)
 * bstat - return value of the BSEC library
@@ -146,19 +146,11 @@ Where:
 * gt2_5 - > 2.5um in 0.1L air
 * gt5 - > 5.0um in 0.1L air
 * gt10 - > 10um in 0.1L air
-* pstat - return value of the UART communication with the PMS5003 sensor
+* pstat - return value of the UART communication with the PMS5003 sensor (see `pms5003.h` for a description of the UART error codes)
 
 The JSON output format can easily be modified in the `output_ready` function.
 
-The BSEC library is supposed to create an internal state of calibration with
-increasing accuracy over time. Each 10000 samples it will save the internal
-calibration state to `./bsec_iaq.state` (or wherever you specify the config
-directory to be) so it can pick up where it was after interruption.
-
-## Further
-
-You can find a growing list of tools to further use and visualize the data
-[here](https://github.com/alexh-name/bme680_outputs).
+The BSEC library is supposed to create an internal state of calibration with increasing accuracy over time. Each 10000 samples it will save the internal calibration state to `./bsec_iaq.state` (or wherever you specify the config directory to be) so it can pick up where it was after interruption.
 
 ## Troubleshooting
 
