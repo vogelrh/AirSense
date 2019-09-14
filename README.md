@@ -80,13 +80,53 @@ The JSON Object will be similar to this:
 
 ```
 {
-  "sensor_id": "slavePi01",
-
+  "sensor_id": "masterpi",
+  "time_stamp": "2019-09-14 08:06:12",
+  "IAQ": 95.86,
+  "iaq_accuracy": 3,
+  "temperature": 24.13,
+  "humidity": 49.76,
+  "pressure": 991.71,
+  "gas_resistance": 757746,
+  "bVOCe": 1.23,
+  "eCO2": 845.39,
+  "bse_status": 0,
+  "pm1cf": 4,
+  "pm2_5cf": 6,
+  "pm10cf": 8,
+  "pm1at": 4,
+  "pm2_5at": 6,
+  "pm10at": 8,
+  "gt0_3": 972,
+  "gt0_5": 265,
+  "gt1": 44,
+  "gt2_5": 4,
+  "gt5": 3,
+  "gt10": 1,
+  "pms_status": 0
 }
 ```
-
-* IAQ (n) - Accuracy of the IAQ score from 0 (low) to 3 (high).
-* S: n - Return value of the BSEC library
+If the -u flag is set then the output would be similar to the following:
+```
+{
+  "sensor_id": "slavepi01",
+  "time_stamp": "2019-09-14 08:06:13",
+  "IAQ": 129.66,
+  "iaq_accuracy": 1,
+  "temperature": 18.73,
+  "humidity": 75.14,
+  "pressure": 992.95,
+  "gas_resistance": 189115,
+  "bVOCe": 1,
+  "eCO2": 707.17,
+  "bse_status": 0
+}
+```
+Where:
+* IAQ - Index for Air Quality between 0 (Excellent) and 500 (Extremely Bad). 
+* iaq_accuracy - Accuracy of the IAQ score from 0 (low) to 3 (high).
+* tem
+* bse_status - Return value of the BSEC library
 
 It can easily be modified in the `output_ready` function.
 
