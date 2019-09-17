@@ -125,8 +125,8 @@ If the -u flag is set then the output would be similar to the following:
 }
 ```
 Where:
-* IAQ - Index for Air Quality between 0 (Excellent) and 500 (Extremely Bad). 
-* iaq_accuracy - Accuracy of the IAQ score from 0 (low) to 3 (high).
+* IAQ - Index for Air Quality (see [BME680 Data sheet](https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BME680-DS001.pdf) Table 4 for details)
+* iaq_accuracy - Accuracy of the IAQ score from 0 (low) to 3 (high)
 * T - temperature (°C)
 * RH - relative humidity (%)
 * P - pressure (hPa)
