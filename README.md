@@ -7,12 +7,12 @@ The app reads the BME680 sensor with the BSEC library on Linux (e.g. Raspberry P
 Optionally the app can be configured to only output data from the BME680 sensor.
 
 ## Credit
-This project is a fork of an [alexh.name](https://github.com/alexh-name/bsec_bme680_linux) project with the addition of a MQTT library by [Liam Bindle](https://github.com/LiamBindle/MQTT-C) and a PMS5003 sensor library developed by myself.
+This project is a fork of an [alexh.name](https://github.com/alexh-name/bsec_bme680_linux) project with the addition of a MQTT library by [Liam Bindle](https://github.com/LiamBindle/MQTT-C) and a [PMS5003 sensor library](https://github.com/vogelrh/pms5003c).
 
 
 ## Intro
 
-This app is designed to run on a Linxu SoC such as the Raspberry Pi Zero and will continuously send air quality data from the 
+This app is designed to run on a Linux SBC such as the Raspberry Pi Zero and will continuously send air quality data from the 
 [BME680 sensor](https://www.bosch-sensortec.com/en/bst/products/all_products/bme680) and the [Plantower PMS5003](http://www.aqmd.gov/docs/default-source/aq-spec/resources-page/plantower-pms5003-manual_v2-3.pdf) sensor across a MQTT channel.
 
 For the BME680 sensor, it utilizes the
@@ -34,7 +34,7 @@ To compile the code locally: `./make.sh`
 
 ## Compiling for a Target System
 If your development system which you downloaded this code to is not 
-going to be your target deployment system, rather than dealing with a complex cross-compiler environment, I take a simplistic approach.
+going to be your target deployment system and you don't have a cross compiler, I have provided a simple solution.
 
 There is a script in this project `prepack.sh` which will bundle all of the required files for the target system into a tar.gz file which can then be sent to the target system, expanded and then compiled on the target system. Of course, for this to work you will need two things:
   * A GCC compiler on the target system
@@ -159,4 +159,11 @@ The BSEC library is supposed to create an internal state of calibration with inc
 * Your bsec_iaq.state file might be corrupt or incompatible after an update of the
 BSEC library. Try (re)moving it and recreating an empty file.
 * You have multiple version of AirSense using the same sensor id value. Make sure each version has a unique id.
+
+###On startup missing file messages
+
+You see messages at startups such as `stat'ing binary file bsec_iac.config: No such file or directory`.
+
+The `bsec_iag.config` file is not located in the default file path for AirSense. Be sure to set the default directory to the location of the .config file before starting AirSense. *Note: The bsec_iaq.state file is created the first time AirSense tries to store the settings.*
+
 
