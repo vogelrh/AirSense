@@ -15,10 +15,12 @@ This project is a fork of an [alexh.name](https://github.com/alexh-name/bsec_bme
 This app is designed to run on a Linux SBC such as the Raspberry Pi Zero and will continuously send air quality data from the 
 [BME680 sensor](https://www.bosch-sensortec.com/en/bst/products/all_products/bme680) and the [Plantower PMS5003](http://www.aqmd.gov/docs/default-source/aq-spec/resources-page/plantower-pms5003-manual_v2-3.pdf) sensor across a MQTT channel.
 
-For the BME680 sensor, it utilizes the
+The BME680 sensor is an air quality sensor that measures temperature, pressure, humidity and organic volatiles, and communicates via an I2C bus. The AirSense code utilizes the
 [BSEC library](https://www.bosch-sensortec.com/bst/products/all_products/bsec),
-which reads calibrated environment values including an actual Indoor Air Quality (IAQ) score, and it makes use of a
-[Bosch's provided driver](https://github.com/BoschSensortec/BME680_driver).
+which is a propriatary, pre-compiled library that provides calibrated environment values and generates an actual Indoor Air Quality (IAQ) score. It reads BME680 data via Bosch's
+[provided driver](https://github.com/BoschSensortec/BME680_driver).
+
+The PMS5003 is a pre-calibrated particulate matter sensor that communicates via UART.
 
 ## Prerequisites
 
@@ -32,15 +34,16 @@ Optionally make changes to `make.config`. Change the `ARCH` parameter for differ
 
 To compile the code locally: `./make.sh`
 
+You will find the complied program in `bin` directory created by the make file.
+
 ## Compiling for a Target System
-If your development system which you downloaded this code to is not 
-going to be your target deployment system and you don't have a cross compiler, I have provided a simple solution.
+If your development system is not going to be your target deployment system and you don't have a cross compiler, I have provided a simple solution.
 
 There is a script in this project `prepack.sh` which will bundle all of the required files for the target system into a tar.gz file which can then be sent to the target system, expanded and then compiled on the target system. Of course, for this to work you will need two things:
   * A GCC compiler on the target system
-  * A BSEC library file for the target system.
+  * An included BSEC library file for the target system.
 
-The bundled code will be placed in a subdirectory of the ./prepack directory. For example if you are bundling for a Pi Zero target system, after configuring and running the `prepack.sh` script, you will find the bundle in the directory `./prepack/PiZero_ArmV6-32bits`.
+The bundled code will be placed in a subdirectory of the ./prepack directory. For example if you are bundling for a Pi Zero target system, after configuring and running the `prepack.sh` script, you will find the bundle in the directory `prepack/PiZero_ArmV6-32bits` created in the toplevel of our project directory.
 
 If you have ssh set up on the target system you can send the file to the target using the `scp` command.
 
