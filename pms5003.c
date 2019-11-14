@@ -220,6 +220,15 @@ static int read_pms_data_block(pms5003_data_block *data)
   }
   if (checksum != data->d.cksum)
   {
+    printf("Data:\nD1: %d %d\n D2: %d %d\n D3: %d %d\n D4: %d %d\n D5: %d %d\n D6: %d %d\n D7: %d %d",
+    data->raw_data[0],data->raw_data[1],data->raw_data[2],data->raw_data[3],data->raw_data[4],data->raw_data[5],
+    data->raw_data[6],data->raw_data[7],data->raw_data[8],data->raw_data[9],data->raw_data[10],data->raw_data[11],
+    data->raw_data[12],data->raw_data[13]);
+    printf("Data:\nD8: %d %d\n D9: %d %d\n D10: %d %d\n D11: %d %d\n D12: %d %d\n D13: %d %d\n CHK: %d %d",
+    data->raw_data[14],data->raw_data[15],data->raw_data[16],data->raw_data[17],data->raw_data[18],data->raw_data[19],
+    data->raw_data[20],data->raw_data[21],data->raw_data[22],data->raw_data[23],data->raw_data[24],data->raw_data[25],
+    data->raw_data[26],data->raw_data[27]);
+    printf("SOF: %d, PKL: %d CCHK: %d", (sof.data[0] + sof.data[1]), packet_length.value, checksum );
     return UART_CHECKSUM_ERROR;
   }
 

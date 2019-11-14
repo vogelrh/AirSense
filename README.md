@@ -70,8 +70,8 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 | -u | | Disable the PMS5003 sensor. Only output data from the BSE630. |
 | -b | *address* | The address of the MQTT broker / server. Default: `test.mosquitto.org` |
 | -p | *port* | The port number of the MQTT broker / server. Default: `1883` |
-| -t | *topic* | The MQTT topic to publish to. Default: `AirSenseData` |
-| -i| *sensor id* | The id of the sensor system sending the data. This is transmitted with the data to identify the source of the data  Default: *system machine name* |
+| -t | *topic* | The MQTT topic to publish to. Default: `AirSenseData/<sensor id>` |
+| -i| *sensor id* | The id of the sensor system sending the data. This is transmitted with the data to identify the source of the data packet in the event that the reciever is using wild cards.  Default: *system machine name* |
 | -m | *number* | The message output rate as a multiple of the intrinsic BSEC sampling rate. The intrinsic sampling rate is determined by the BSEC configuration file used. The default value is `2` which is twice the intrinsic rate. |
 | -o | temperature | An offset temperature value. This value is applied to the temperature reading to compensate for any heat given off by the electronics around the sensor. Default: `5.0` °C. |
 

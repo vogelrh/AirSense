@@ -41,11 +41,12 @@
 #define DEF_PORT "1883"
 #define DEF_TOPIC "AirSenseData"
 #define DEF_SAMPLE_MULTIPLIER 2 //sample rate = DEF_SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
+#define MAX_TOPIC_LEN 1024
 
 int g_i2cFid; // I2C Linux device handle
 int i2c_address;
 const char* sensor_id;
-const char* topic;
+char topic[MAX_TOPIC_LEN];
 char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
 struct mqtt_client client; //MQTT client
@@ -426,7 +427,7 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  * -u             -- Disable the pms5003 sensor. Only output date from the BSE680.
  * -b <addres>    -- the address of the MQTT broker/server (default: test.mosquitto.org).
  * -p <port>      -- the port number of the MQTT broker/server (default: 1883).
- * -t <topic>     -- the MQTT channel name (default: AirSenseData).
+ * -t <topic>     -- the MQTT channel name (default: AirSenseData/<sensor id>).
  * -i <sensor id> -- the id of the sensor.
  * -m <int>       -- Message output rate as a multiplier of the intrinsic BSEC sampling rate.
  *                   a value of 1 would send data at the intrinsic sampling rate while as
@@ -443,7 +444,7 @@ int main(int argc, char **argv)
   int opt;
   const char* broker = DEF_ADDR ;
   const char* port = DEF_PORT;
-  topic = DEF_TOPIC;
+  const char* ptopic = DEF_TOPIC;
   i2c_address = BME680_I2C_ADDR_PRIMARY;
   size_t len;
   char mname[256];
@@ -476,7 +477,7 @@ int main(int argc, char **argv)
         port = optarg;
         break;
       case 't':
-        topic = optarg;
+        ptopic = optarg;
         break;
       case 'i':
         sensor_id = optarg;
@@ -497,6 +498,9 @@ int main(int argc, char **argv)
         
         return 1; //abort on option errors
     }
+  if (strcmp(ptopic, DEF_TOPIC) == 0)  { // If topic not overriden, build default from: default topic / sensorId
+    snprintf(topic,sizeof(topic),"%s/%s", DEF_TOPIC, sensor_id); //build topic
+  }
   if (debug) {
     const char * addr;
     if (i2c_address == BME680_I2C_ADDR_PRIMARY) {
@@ -504,7 +508,7 @@ int main(int argc, char **argv)
     } else {
       addr = "Secondary";
     }
-    printf("*** Application Starting ***\nI2C Address: %s\nDisable PMS5003: %d\nBroker: %s\nPort: %s",
+    printf("*** Application Starting ***\nI2C Address: %s\nDisable PMS5003: %d\nBroker: %s\nPort: %s\n",
            addr, disable5003, broker, port);
     printf("Topic: %s\nSensor ID: %s\nSample Multiplier: %d\n*******\n", topic, sensor_id,sample_multiplier);       
   }
