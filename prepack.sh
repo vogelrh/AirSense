@@ -81,7 +81,9 @@ cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter \
  -o bin/airsense
 
 cp ./bsec_iaq.config ./bin
-touch ./bin/bsec_iaq.state
+if [ ! -f "./bin/bsec_iaq.state" ]; then
+  touch "./bin/bsec_iaq.state"
+fi
 EOM
 chmod +x "${COPY_DIR}"/make.sh
 
