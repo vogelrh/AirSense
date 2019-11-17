@@ -79,7 +79,7 @@ void pms_close();
 int read_pms5003_data(PMS5003_DATA *data);
 
 /**
- * Outputs a specific error/ status message to STDOUT
+ * Outputs a specific error/ status message to STDERR
  * 
  * param[in]        error_code      The UART function status/error code.
  */

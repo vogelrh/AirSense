@@ -42,6 +42,7 @@
 #define DEF_TOPIC "AirSenseData"
 #define DEF_SAMPLE_MULTIPLIER 2 //sample rate = DEF_SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
 #define MAX_TOPIC_LEN 1024
+#define MAX_SEND_ERRORS 5 //max consecutive MQTT send errors
 
 int g_i2cFid; // I2C Linux device handle
 int i2c_address;
@@ -50,6 +51,7 @@ char topic[MAX_TOPIC_LEN];
 char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
 struct mqtt_client client; //MQTT client
+int mqtt_send_errors = 0;
 int sample_count;
 int sample_multiplier;
 int debug = 0;
@@ -304,7 +306,12 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   // check for errors
   if (client.error != MQTT_OK) {
     fprintf(stderr, "MQTT error: %s\n", mqtt_error_str(client.error));
-    exit_airsense(EXIT_FAILURE, sockfd, NULL);   
+    mqtt_send_errors++;
+    if (mqtt_send_errors > MAX_SEND_ERRORS) {
+      exit_airsense(EXIT_FAILURE, sockfd, NULL); 
+    }  
+  } else {
+    mqtt_send_errors = 0;
   }
 
   /* for debuging */
@@ -528,7 +535,7 @@ int main(int argc, char **argv)
 
   /* setup a client */
 
-  uint8_t sendbuf[2048]; /* sendbuf should be large enough to hold multiple whole mqtt messages */
+  uint8_t sendbuf[4096]; /* sendbuf should be large enough to hold multiple whole mqtt messages */
   uint8_t recvbuf[1024]; /* recvbuf should be large enough any whole mqtt message expected to be received */
   mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
   mqtt_connect(&client, sensor_id, NULL, NULL, 0, NULL, NULL, 0, 400);
@@ -554,17 +561,7 @@ int main(int argc, char **argv)
    */
   i2cOpen();
   i2cSetAddress(i2c_address);
-  /**
-   * Open the UART using default serial0 @9600 baud.
-   */
-  if (!disable5003) {
-    int ustat = pms_init();
-    if (ustat != UART_OK) {
-      output_uart_code(ustat);
-      exit_airsense(EXIT_FAILURE, sockfd, NULL);
-    }
-  }
-  
+    
   if (debug) {
     printf("Initializing BSEC library\n");
   }
@@ -578,10 +575,28 @@ int main(int argc, char **argv)
     /* Could not intialize BSEC library */
     return (int)ret.bsec_status;
   }
+  /**
+   * Open the UART using default serial0 @9600 baud.
+   */
+  if (!disable5003) {
+    if (debug) {
+      printf("Initializing BSEC library\n");
+    }
+    int ustat = pms_init();
+    if (ustat != UART_OK) {
+      output_uart_code(ustat);
+      exit_airsense(EXIT_FAILURE, sockfd, NULL);
+    }
+    // wait for uart initialization to complete
+    _sleep(250);
+  }
 
   if (debug) {
     printf("Entering sampling loop\n");
   }
+  
+  sample_count = sample_multiplier; // send data on the first sample interval
+
   /* Call to endless loop function which reads and processes data based on
    * sensor settings.
    * State is saved every 10.000 samples, which means every 10.000 * 3 secs

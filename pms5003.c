@@ -6,6 +6,7 @@
  */
 #define _XOPEN_SOURCE 700
 
+#include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -92,6 +93,18 @@ static void swap_bytes16(uint8_t *array, int size)
     array[i + 1] = temp;
   }
 }
+static int byte_read(int ufd, uint8_t *buf, size_t count) {
+  size_t num_read = 0;
+  do {
+    int rdlen = read(ufd, (char *) buf + num_read, count - num_read);
+    if (rdlen < 1) {   
+      return UART_RX_ERROR;
+    }
+    num_read += rdlen;
+  } while (num_read < count);
+
+  return UART_OK;
+}
 /**
  * Reads two bytes from the UART and populates the specified uart_word
  * union. Note because we are running in no-wait mode, we may not have 
@@ -104,19 +117,22 @@ static void swap_bytes16(uint8_t *array, int size)
  */
 static int read_word(uart_word *word, int swap)
 {
-  int rx_cnt = read(uart0_filestream, word->data, 2);
-  if (rx_cnt < 0)
-  {
-    return UART_RX_ERROR; // some read error occured.
-  }
-  else if (rx_cnt == 0)
-  { // no data yet.
+  int rx_cnt = byte_read(uart0_filestream, word->data, 2);
+  if (rx_cnt != UART_OK) {
     word->value = 0;
+    return  rx_cnt;
   }
-  else if (rx_cnt != 2)
-  {
-    return UART_UNEXPECTED_DATA_ERROR;
-  }
+  // {
+  //   return UART_RX_ERROR; // some read error occured.
+  // }
+  // else if (rx_cnt == 0)
+  // { // no data yet.
+  //   word->value = 0;
+  // }
+  // else if (rx_cnt != 2)
+  // {
+  //   return UART_UNEXPECTED_DATA_ERROR;
+  // }
 
   if (swap)
   {
@@ -173,8 +189,7 @@ static int read_pms_data_block(pms5003_data_block *data)
       break;
     }
     else if (rstat != UART_OK)
-    {
-      output_uart_code(rstat);
+    {    
       return rstat; //error occured
     }
   }
@@ -195,16 +210,12 @@ static int read_pms_data_block(pms5003_data_block *data)
   checksum += (packet_length.data[0] + packet_length.data[1]);
 
   // Now read sensor data, but first wait for rest of data
-  msleep(50); // 50 milliseconds is plenty for 28 bytes at 9600 baud
+  //msleep(50); // 50 milliseconds is plenty for 28 bytes at 9600 baud
 
-  int rx_cnt = read(uart0_filestream, data->raw_data, PMS5003_EXPECTED_BYTES);
-  if (rx_cnt < 0)
+  int rx_cnt = byte_read(uart0_filestream, data->raw_data, PMS5003_EXPECTED_BYTES);
+  if (rx_cnt != UART_OK)
   {
-    return UART_RX_ERROR; // some read error occured.
-  }
-  else if (rx_cnt != PMS5003_EXPECTED_BYTES)
-  {
-    return UART_UNEXPECTED_DATA_ERROR;
+    return rx_cnt; // some read error occured.
   }
 
   // Swap bytes if little ended system
@@ -220,15 +231,6 @@ static int read_pms_data_block(pms5003_data_block *data)
   }
   if (checksum != data->d.cksum)
   {
-    printf("Data:\nD1: %d %d\n D2: %d %d\n D3: %d %d\n D4: %d %d\n D5: %d %d\n D6: %d %d\n D7: %d %d",
-    data->raw_data[0],data->raw_data[1],data->raw_data[2],data->raw_data[3],data->raw_data[4],data->raw_data[5],
-    data->raw_data[6],data->raw_data[7],data->raw_data[8],data->raw_data[9],data->raw_data[10],data->raw_data[11],
-    data->raw_data[12],data->raw_data[13]);
-    printf("Data:\nD8: %d %d\n D9: %d %d\n D10: %d %d\n D11: %d %d\n D12: %d %d\n D13: %d %d\n CHK: %d %d",
-    data->raw_data[14],data->raw_data[15],data->raw_data[16],data->raw_data[17],data->raw_data[18],data->raw_data[19],
-    data->raw_data[20],data->raw_data[21],data->raw_data[22],data->raw_data[23],data->raw_data[24],data->raw_data[25],
-    data->raw_data[26],data->raw_data[27]);
-    printf("SOF: %d, PKL: %d CCHK: %d", (sof.data[0] + sof.data[1]), packet_length.value, checksum );
     return UART_CHECKSUM_ERROR;
   }
 
@@ -284,7 +286,7 @@ int pms_init_override(char *device, int baud)
   }
 
   uart0_filestream = open(device, O_RDWR | O_NOCTTY | O_NDELAY); //open in non blocking mode
-  if (uart0_filestream == -1)
+  if (uart0_filestream < 0)
   {
     return UART_INIT_ERROR;
   }
@@ -299,16 +301,25 @@ int pms_init_override(char *device, int baud)
   options.c_cflag &= ~CSTOPB;
   options.c_cflag &= ~CSIZE;
   options.c_cflag |= CS8;
-  //Enable receiver and do not jange owner of port
+  //Enable receiver and do not change owner of port
   options.c_cflag |= CLOCAL | CREAD;
 
   //raw input
-  options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+  options.c_lflag &= ~(ICANON | ECHO | ECHONL | ISIG | IEXTEN);
 
+  // One byte is enough to return from read
+  options.c_cc[VMIN] = 1;
+  options.c_cc[VTIME] = 0;
+
+  // Turn off output processing
   options.c_oflag = 0;
-  //options.c_lflag = 0;
+
   tcflush(uart0_filestream, TCIFLUSH);
-  tcsetattr(uart0_filestream, TCSANOW, &options);
+  if (tcsetattr(uart0_filestream, TCSANOW, &options) != 0) {
+    return UART_INIT_ERROR;
+  }
+
+  msleep(500); // slight delay to avoid No such file or directory.
   uart_status = UART_OK;
   return uart_status;
 }
@@ -368,11 +379,11 @@ void output_uart_code(int error_code)
   if (err_msg != NULL)
   {
     if (sysErr)
-    {
+    {   
       perror(err_msg);
     }
     else
-    {
+    {    
       fprintf(stderr, "%s\n", err_msg);
     }
   }
@@ -382,9 +393,6 @@ int read_pms5003_data(PMS5003_DATA *data)
 {
   pms5003_data_block rd;
   int status = read_pms_data_block(&rd); //read the sensor
-
-  //printf("PM1.0   %d\nPM2.5   %d\nPM10    %d\nPM1.0a  %d\nPM2.5a %d\nPM10a   %d\n>0.3   %d\n>0.5   %d\n>1    %d\n>2.5   %d\n>5    %d\n>10    %d\n",
-  //rd.d.pm1cf,rd.d.pm2_5cf,rd.d.pm10cf,rd.d.pm1at,rd.d.pm2_5at,rd.d.pm10at,rd.d.gt0_3,rd.d.gt0_5,rd.d.gt1,rd.d.gt2_5,rd.d.gt5,rd.d.gt10);
 
   if (status == UART_OK)
   { //transfer data to final structure
