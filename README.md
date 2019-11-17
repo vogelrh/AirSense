@@ -65,7 +65,7 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 
 | Option |   Value    |    Description                   |
 |:-------:|:----------:|----------------------------------|
-| -s | | If specified then the secondary BSE680 I2C address will be used |
+| -s | | If specified then the secondary BME680 I2C 0x77 address will be used |
 | -d | | Debug mode, writes information, including the JSON output to `stdout`. |
 | -u | | Disable the PMS5003 sensor. Only output data from the BSE630. |
 | -b | *address* | The address of the MQTT broker / server. Default: `test.mosquitto.org` |
@@ -167,7 +167,7 @@ BSEC library. Try (re)moving it and recreating an empty file.
 
 You see messages at startups such as `stat'ing binary file bsec_iac.config: No such file or directory`.
 
-The `bsec_iag.config` file is not located in the default file path for AirSense. Be sure to set the default directory to the location of the .config file before starting AirSense. *Note: The bsec_iaq.state file is created the first time AirSense tries to store the settings.*
+The `bsec_iaq.config` file is not located in the default file path for AirSense. Be sure to set the default directory to the location of the .config file before starting AirSense. *Note: The bsec_iaq.state file is created the first time AirSense tries to store the settings.*
 
 ## Sourcing the Hardware
 While there are a few different BME680 breakout boards, the author sourced the BME680 as well as the PMS5003 from [Pimoroni](https://shop.pimoroni.com/collections/bearables).
