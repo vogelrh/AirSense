@@ -15,7 +15,7 @@ This project used [alexh.name's](https://github.com/alexh-name/bsec_bme680_linux
 This app is designed to run on a Linux SBC such as the Raspberry Pi Zero and will continuously send air quality data from the 
 [BME680 sensor](https://www.bosch-sensortec.com/en/bst/products/all_products/bme680) and the [Plantower PMS5003](http://www.aqmd.gov/docs/default-source/aq-spec/resources-page/plantower-pms5003-manual_v2-3.pdf) sensor across a MQTT channel.
 
-The BME680 sensor is an air quality sensor that measures temperature, pressure, humidity and organic volatiles, and communicates via an I2C bus. The AirSense code utilizes the
+The BME680 sensor is an air quality sensor that measures temperature, pressure, humidity and organic volatiles, and communicates via an I2C bus (0x76 or 0x77). The AirSense code utilizes the
 [BSEC library](https://www.bosch-sensortec.com/bst/products/all_products/bsec),
 which is a propriatary, pre-compiled library that provides calibrated environment values and generates an actual Indoor Air Quality (IAQ) score. It reads BME680 data via Bosch's
 [provided driver](https://github.com/BoschSensortec/BME680_driver).
@@ -65,9 +65,9 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 
 | Option |   Value    |    Description                   |
 |:-------:|:----------:|----------------------------------|
-| -s | | If specified then the secondary BSE680 I2C address will be used |
+| -s | | If specified then the secondary BME680 I2C 0x77 address will be used |
 | -d | | Debug mode, writes information, including the JSON output to `stdout`. |
-| -u | | Disable the PMS5003 sensor. Only output data from the BSE630. |
+| -u | | Disable the PMS5003 sensor. Only output data from the BME680. |
 | -b | *address* | The address of the MQTT broker / server. Default: `test.mosquitto.org` |
 | -p | *port* | The port number of the MQTT broker / server. Default: `1883` |
 | -t | *topic* | The MQTT topic to publish to. Default: `AirSenseData/<sensor id>` |
@@ -165,9 +165,9 @@ BSEC library. Try (re)moving it and recreating an empty file.
 
 ### On startup missing file messages
 
-You see messages at startups such as `stat'ing binary file bsec_iac.config: No such file or directory`.
+You see messages at startups such as `stat'ing binary file bsec_iaq.config: No such file or directory`.
 
-The `bsec_iag.config` file is not located in the default file path for AirSense. Be sure to set the default directory to the location of the .config file before starting AirSense. *Note: The bsec_iaq.state file is created the first time AirSense tries to store the settings.*
+The `bsec_iaq.config` file is not located in the default file path for AirSense. Be sure to set the default directory to the location of the .config file before starting AirSense. *Note: The bsec_iaq.state file is created the first time AirSense tries to store the settings.*
 
 ## Sourcing the Hardware
 While there are a few different BME680 breakout boards, the author sourced the BME680 as well as the PMS5003 from [Pimoroni](https://shop.pimoroni.com/collections/bearables).
