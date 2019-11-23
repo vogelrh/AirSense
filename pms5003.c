@@ -293,31 +293,33 @@ int pms_init_override(char *device, int baud)
 
   // Initialze for 8bit data, 1 stop bit, no parity no checkbit
   struct termios options;
-  tcgetattr(uart0_filestream, &options);
+  if (tcgetattr(uart0_filestream, &options) <0) {
+    return UART_INIT_ERROR;
+  }
   cfsetospeed(&options, baud_rate);
   cfsetispeed(&options, baud_rate);
-  //no parity (8N1)
-  options.c_cflag &= ~PARENB;
-  options.c_cflag &= ~CSTOPB;
+  options.c_cflag |= (CLOCAL | CREAD); /* ignore modem controls */
   options.c_cflag &= ~CSIZE;
-  options.c_cflag |= CS8;
-  //Enable receiver and do not change owner of port
-  options.c_cflag |= CLOCAL | CREAD;
+  options.c_cflag |= CS8;              /* 8-bit characters */
+  options.c_cflag &= ~PARENB;          /* no parity bit */
+  options.c_cflag &= ~CSTOPB;          /* only need 1 stop bit */
+  options.c_cflag &= ~0x00010000;         /* no hardware flowcontrol CRTSCTS*/
 
-  //raw input
-  options.c_lflag &= ~(ICANON | ECHO | ECHONL | ISIG | IEXTEN);
+
+  //setup for raw binary input
+  options.c_iflag &=
+      ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+  options.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+  options.c_oflag &= ~OPOST;
 
   // One byte is enough to return from read
   options.c_cc[VMIN] = 1;
   options.c_cc[VTIME] = 0;
 
-  // Turn off output processing
-  options.c_oflag = 0;
-
-  tcflush(uart0_filestream, TCIFLUSH);
   if (tcsetattr(uart0_filestream, TCSANOW, &options) != 0) {
     return UART_INIT_ERROR;
   }
+  tcflush(uart0_filestream, TCIFLUSH);
 
   msleep(500); // slight delay to avoid No such file or directory.
   uart_status = UART_OK;
