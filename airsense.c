@@ -299,7 +299,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   if (debug) {
     printf("Ready to publish\n");
   }
-  int stat = (int)mqtt_publish(&client, topic, message, mcnt + 1, MQTT_PUBLISH_QOS_1);
+  int stat = (int)mqtt_publish(&client, topic, message, mcnt, MQTT_PUBLISH_QOS_1);
   if (debug) {
     printf("Publish status: %d\n", stat);
   }

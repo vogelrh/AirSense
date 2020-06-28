@@ -77,7 +77,7 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 
 ### Program Output
 
-Any error messages will be written to  `stderr`. Nothing will be written to `stdout` unless the `-d` option is specified. All sensor data will be sent across the MQTT channel as a string representation of a JSON object. *Programming note: the JSON string will contain a C string terminator (zero) at the end and must be removed from the receiving end before parsing the JSON*
+Any error messages will be written to  `stderr`. Nothing will be written to `stdout` unless the `-d` option is specified. All sensor data will be sent across the MQTT channel as a string representation of a JSON object. 
 
 The JSON Object will be similar to this:
 
