@@ -65,15 +65,19 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 
 | Option |   Value    |    Description                   |
 |:-------:|:----------:|----------------------------------|
-| -s | | If specified then the secondary BME680 I2C 0x77 address will be used |
-| -d | | Debug mode, writes information, including the JSON output to `stdout`. |
-| -u | | Disable the PMS5003 sensor. Only output data from the BME680. |
-| -b | *address* | The address of the MQTT broker / server. Default: `test.mosquitto.org` |
-| -p | *port* | The port number of the MQTT broker / server. Default: `1883` |
-| -t | *topic* | The MQTT topic to publish to. Default: `AirSenseData/<sensor id>` |
-| -i| *sensor id* | The id of the sensor system sending the data. This is transmitted with the data to identify the source of the data packet in the event that the reciever is using wild cards.  Default: *system machine name* |
-| -m | *number* | The message output rate as a multiple of the intrinsic BSEC sampling rate. The intrinsic sampling rate is determined by the BSEC configuration file used. The default value is `2` which is twice the intrinsic rate. |
-| -o | temperature | An offset temperature value. This value is applied to the temperature reading to compensate for any heat given off by the electronics around the sensor. Default: `5.0` °C. |
+| -s or --secondary | | If specified then the secondary BME680 I2C 0x77 address will be used |
+| -v or --verbose | | Debug mode, writes information, including the JSON output to `stdout`. |
+| -d or --disable | | Disable the PMS5003 sensor. Only output data from the BME680. |
+| -b or --broker| *address* | The address of the MQTT broker / server. Default: `test.mosquitto.org` |
+| -p or --port| *port* | The port number of the MQTT broker / server. Default: `1883` |
+| -t or --topic| *topic* | The MQTT topic to publish to. Default: `AirSenseData/<sensor id>` |
+| -i or --sensor| *sensor id* | The id of the sensor system sending the data. This is transmitted with the data to identify the source of the data packet in the event that the reciever is using wild cards.  Default: *system machine name* |
+| -m or --multiple| *number* | The message output rate as a multiple of the intrinsic BSEC sampling rate. The intrinsic sampling rate is determined by the BSEC configuration file used. The default value is `2` which is twice the intrinsic rate. |
+| -o or --offset| temperature | An offset temperature value. This value is applied to the temperature reading to compensate for any heat given off by the electronics around the sensor. Default: `5.0` °C. |
+| -u or --username| *mqtt username*| Optional username required by the MQTT server.|
+| -w or --password| *mqtt password*| Optional password required by the MQTT server.|
+
+*NOTE: Some options have changed since version 1.0* 
 
 ### Program Output
 
@@ -84,7 +88,8 @@ The JSON Object will be similar to this:
 ```
 {
   "sensor_id": "slavepi01",
-  "time_stamp": "2019-09-14 08:06:12",
+  "time_stamp_ms": 1595509965783,
+  "time_stamp": "2020-07-23 09:12:45",
   "IAQ": 95.86,
   "iaq_accuracy": 3,
   "T": 24.13,
@@ -114,7 +119,8 @@ If the -u flag is set then the output would be similar to the following:
 ```
 {
   "sensor_id": "slavepi02",
-  "time_stamp": "2019-09-14 08:06:13",
+  "time_stamp_ms": 1595509965783,
+  "time_stamp": "2020-07-23 09:12:45",
   "IAQ": 129.66,
   "iaq_accuracy": 1,
   "T": 18.73,
@@ -173,3 +179,10 @@ The `bsec_iaq.config` file is not located in the default file path for AirSense.
 While there are a few different BME680 breakout boards, the author sourced the BME680 as well as the PMS5003 from [Pimoroni](https://shop.pimoroni.com/collections/bearables).
 
 
+## Releases
+
+| Release | Description |
+| -- | --- |
+| V1.0 | Initial release |
+| V1.0.1|Fixed bug that sent the string terminator at the end of the JSON MQTT message.
+|V1.1|Updated argument options to include a MQTT username and password. Also added a "time_stamp_ms" field to the JSON MQTT output to better accommodate sending the AirSense output to time-based databases.
