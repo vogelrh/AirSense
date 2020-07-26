@@ -17,7 +17,7 @@ This app is designed to run on a Linux SBC such as the Raspberry Pi Zero and wil
 
 The BME680 sensor is an air quality sensor that measures temperature, pressure, humidity and organic volatiles, and communicates via an I2C bus (0x76 or 0x77). The AirSense code utilizes the
 [BSEC library](https://www.bosch-sensortec.com/bst/products/all_products/bsec),
-which is a propriatary, pre-compiled library that provides calibrated environment values and generates an actual Indoor Air Quality (IAQ) score. It reads BME680 data via Bosch's
+which is a proprietary, pre-compiled library that provides calibrated environment values and generates an actual Indoor Air Quality (IAQ) score. It reads BME680 data via Bosch's
 [provided driver](https://github.com/BoschSensortec/BME680_driver).
 
 The PMS5003 is a pre-calibrated particulate matter sensor that communicates via UART.
