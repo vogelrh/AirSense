@@ -21,7 +21,8 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
-#include <inttypes.h>
+#include <getopt.h>
+#include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -47,6 +48,8 @@
 int g_i2cFid; // I2C Linux device handle
 int i2c_address;
 const char* sensor_id;
+const char* username = NULL;
+const char* password = NULL;
 char topic[MAX_TOPIC_LEN];
 char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
@@ -205,9 +208,10 @@ int8_t bus_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *reg_data_ptr,
 }
 
 /*
- * Capture the system time in microseconds
+ * Capture the system time in microseconds since it uses
+ * CLOCK_MONOTONIC it can't be used for the unix time_stamp
  *
- * return          system_current_time    system timestamp in microseconds
+ * return  system_current_time    system timestamp in microseconds
  */
 int64_t get_timestamp_us()
 {
@@ -215,11 +219,9 @@ int64_t get_timestamp_us()
   //clock_gettime(CLOCK_REALTIME, &spec);
   /* MONOTONIC in favor of REALTIME to avoid interference by time sync. */
   clock_gettime(CLOCK_MONOTONIC, &spec);
-
   int64_t system_current_time_ns = (int64_t)(spec.tv_sec) * (int64_t)1000000000
                                    + (int64_t)(spec.tv_nsec);
   int64_t system_current_time_us = system_current_time_ns / 1000;
-
   return system_current_time_us;
 }
 
@@ -261,6 +263,9 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   sample_count = 0;
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
+  struct timeval tv;
+  gettimeofday(&tv, NULL); 
+  int64_t tm_ms = (uint64_t)(tv.tv_sec) * 1000 + (uint64_t)(tv.tv_usec) / 1000;;
   int pstat;
   float di = temperature - 0.55 * (1 - 0.01 * humidity) * (temperature - 14.5);
 
@@ -282,14 +287,14 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   char message[2048]; //over kill
   if (disable5003) {
     sprintf(message,
-           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"T\":%.2f,\"RH\":%.2f,\"P\":%.2f,\"DI\":%.0f,\"gas\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bstat\":%d}",
-                      sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
+           "{\"sensor_id\":\"%s\",\"time_stamp_ms\":%lld,\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"T\":%.2f,\"RH\":%.2f,\"P\":%.2f,\"DI\":%.0f,\"gas\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bstat\":%d}",
+                      sensor_id, tm_ms, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                       iaq, iaq_accuracy, temperature, humidity, pressure / 100, di, gas, breath_voc_equivalent, co2_equivalent, bsec_status);
 
   } else {
     sprintf(message,
-           "{\"sensor_id\":\"%s\",\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"T\":%.2f,\"RH\":%.2f,\"P\":%.2f,\"DI\":%.0f,\"gas\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bstat\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pstat\":%d}",
-                      sensor_id, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
+           "{\"sensor_id\":\"%s\",\"time_stamp_ms\":%lld,\"time_stamp\":\"%d-%02d-%02d %02d:%02d:%02d\",\"IAQ\":%.2f,\"iaq_accuracy\":%d,\"T\":%.2f,\"RH\":%.2f,\"P\":%.2f,\"DI\":%.0f,\"gas\":%.0f,\"bVOCe\":%.2f,\"eCO2\":%.2f,\"bstat\":%d,\"pm1cf\":%d,\"pm2_5cf\":%d,\"pm10cf\":%d,\"pm1at\":%d,\"pm2_5at\":%d,\"pm10at\":%d,\"gt0_3\":%d,\"gt0_5\":%d,\"gt1\":%d,\"gt2_5\":%d,\"gt5\":%d,\"gt10\":%d,\"pstat\":%d}",
+                      sensor_id, tm_ms, tm.tm_year + 1900,tm.tm_mon + 1,tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 
                       iaq, iaq_accuracy, temperature, humidity, pressure / 100, di, gas, breath_voc_equivalent, co2_equivalent, bsec_status,
                       pms.pm1cf, pms.pm2_5cf, pms.pm10cf, pms.pm1at, pms.pm2_5at, pms.pm10at, pms.gt0_3,
                       pms.gt0_5, pms.gt1, pms.gt2_5, pms.gt5, pms.gt10, pstat);
@@ -429,19 +434,21 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  * a MQTT channel.
  *
  * Program Arguments (all are optional, defaults will be used.)
- * -s             -- Use the BME680 secondary I2C address.
- * -d             -- Debug mode, writes output to stdout.
- * -u             -- Disable the pms5003 sensor. Only output date from the BSE680.
- * -b <addres>    -- the address of the MQTT broker/server (default: test.mosquitto.org).
- * -p <port>      -- the port number of the MQTT broker/server (default: 1883).
- * -t <topic>     -- the MQTT channel name (default: AirSenseData/<sensor id>).
- * -i <sensor id> -- the id of the sensor.
- * -m <int>       -- Message output rate as a multiplier of the intrinsic BSEC sampling rate.
- *                   a value of 1 would send data at the intrinsic sampling rate while as
- *                   value of 2 would send data at twice the intrinsic sampling rate. (default 
- *                   is 2 which is every 6 seconds for the default BSEC configuration)
- * -o <float>     -- an offset temperature in °C. It will compensate for any heat generated by
- *                   components surrounding the BSE680 sensor (default: 5.0).
+ * -s/--secondary           -- Use the BME680 secondary I2C address.
+ * -v/--verbose             -- Debug mode, writes output to stdout.
+ * -d/--disable             -- Disable the pms5003 sensor. Only output date from the BSE680.
+ * -b/--broker <addres>     -- the address of the MQTT broker/server (default: test.mosquitto.org).
+ * -p/--port <port>         -- the port number of the MQTT broker/server (default: 1883).
+ * -t/--topic <topic>       -- the MQTT channel name (default: AirSenseData/<sensor id>).
+ * -i/--sensor <sensor id>  -- the id of the sensor.
+ * -m/--multiple <int>      -- Message output rate as a multiplier of the intrinsic BSEC sampling rate.
+ *                             a value of 1 would send data at the intrinsic sampling rate while as
+ *                             value of 2 would send data at twice the intrinsic sampling rate. (default 
+ *                             is 2 which is every 6 seconds for the default BSEC configuration)
+ * -o/--offset <float>      -- an offset temperature in °C. It will compensate for any heat generated by
+ *                             components surrounding the BSE680 sensor (default: 5.0).
+ * -u/--username <username> -- MQTT broker username
+ * -w/--password <password> -- MQTT broker password
  * 
  * return      result of the processing. Note only returns on fatal error.
  */
@@ -465,46 +472,94 @@ int main(int argc, char **argv)
   /*
    * Parse the input parameters
    */
-  while((opt = getopt(argc, argv, "sdub:p:t:i:m:o:")) != -1)
-    switch(opt) 
+  static struct option long_options[] =
     {
-      case 's':
-        i2c_address = BME680_I2C_ADDR_SECONDARY;
+      /* These options set a flag. */
+      {"verbose", no_argument,       &debug, 1},
+      {"secondary",   no_argument,       &i2c_address, BME680_I2C_ADDR_SECONDARY},
+      {"disable", no_argument, &disable5003, 1},
+      /* These options don’t set a flag.
+          We distinguish them by their indices. */
+      {"username",  required_argument, 0, 'u'},
+      {"broker",  required_argument, 0, 'b'},
+      {"port",    required_argument, 0, 'p'},
+      {"topic",    required_argument, 0, 't'},
+      {"sensor",    required_argument, 0, 'i'},
+      {"password",    required_argument, 0, 'w'},
+      {"multiple",    required_argument, 0, 'm'},
+      {"offset",    required_argument, 0, 'o'},
+      {0, 0, 0, 0}
+    };
+  /* getopt_long stores the option index here. */
+  int option_index = 0;
+  while (1)
+    {
+      opt = getopt_long (argc, argv, "vsdu:b:p:t:i:w:m:o:",
+                       long_options, &option_index);
+
+      /* Detect the end of the options. */
+      if (opt == -1)
         break;
-      case 'd':
-        debug = 1;
-        break;
-      case 'u':
-        disable5003 = 1;
-        break;
-      case 'b':
-        broker = optarg;
-        break;
-      case 'p':
-        port = optarg;
-        break;
-      case 't':
-        ptopic = optarg;
-        break;
-      case 'i':
-        sensor_id = optarg;
-        break;
-      case 'm':
-        sample_multiplier = atoi(optarg);
-        break;
-      case 'o':
-        temp_offset = atof(optarg);
-        break;
-      case '?':
-        if (optopt == 'b' || optopt == 'p' || optopt == 't' || optopt == 'i' || optopt == 'm' || optopt == 'o')
-          fprintf(stderr, "Option -%c requires an argument.\n", optopt);
-        else if (isprint(optopt))
-            fprintf(stderr, "Unknown option `-%c'.\n", optopt);
-        else
-            fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
-        
-        return 1; //abort on option errors
+
+      switch (opt)
+        { 
+        case 0:
+          break;
+
+        case 's':
+          i2c_address = BME680_I2C_ADDR_SECONDARY;
+          break;
+
+        case 'v':
+          debug = 1;
+          break;
+
+        case 'd':
+          disable5003 = 1;
+          break;
+
+        case 'u':
+          username = optarg;
+          break;
+
+        case 'b':
+          broker = optarg;
+          break;
+
+        case 'p':
+          port = optarg;
+          break;
+
+        case 't':
+          ptopic = optarg;
+          break;
+
+        case 'i':
+          sensor_id = optarg;
+          break;
+
+        case 'w':
+          password = optarg;
+          break;
+
+        case 'm':
+          sample_multiplier = atoi(optarg);
+          break;
+
+        case 'o':
+          temp_offset = atof(optarg);
+          break;
+
+        case '?':
+          /* getopt_long already printed an error message. */
+          abort();
+          break;
+
+        default:
+          abort();
+        }
     }
+
   if (strcmp(ptopic, DEF_TOPIC) == 0)  { // If topic not overriden, build default from: default topic / sensorId
     snprintf(topic,sizeof(topic),"%s/%s", DEF_TOPIC, sensor_id); //build topic
   }
@@ -525,6 +580,7 @@ int main(int argc, char **argv)
   if (debug) {
     printf("Initializing MQTT communications\n");
   }
+
   /* open the non-blocking TCP socket (connecting to the broker) */
   sockfd = open_nb_socket(broker, port);
 
@@ -534,7 +590,6 @@ int main(int argc, char **argv)
   }
 
   /* setup a client */
-
   uint8_t sendbuf[4096]; /* sendbuf should be large enough to hold multiple whole mqtt messages */
   uint8_t recvbuf[1024]; /* recvbuf should be large enough any whole mqtt message expected to be received */
   mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
