@@ -76,6 +76,7 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 | -o or --offset| temperature | An offset temperature value. This value is applied to the temperature reading to compensate for any heat given off by the electronics around the sensor. Default: `5.0` °C. |
 | -u or --username| *mqtt username*| Optional username required by the MQTT server.|
 | -w or --password| *mqtt password*| Optional password required by the MQTT server.|
+| -z or --timezone | tz database timezone string. Sets the timezone of the time stamps. Defaults to the local timezone. |
 
 *NOTE: Some options have changed since version 1.0* 
 
