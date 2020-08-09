@@ -3,5 +3,5 @@ bin
 prepack
 /bsec_iaq.config
 /bsec_iaq.state
-
+c_cpp_properties.json
 
