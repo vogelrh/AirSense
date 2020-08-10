@@ -76,20 +76,21 @@ The program is designed to run continuously (ideally at boot). There are a numbe
 | -o or --offset| temperature | An offset temperature value. This value is applied to the temperature reading to compensate for any heat given off by the electronics around the sensor. Default: `5.0` °C. |
 | -u or --username| *mqtt username*| Optional username required by the MQTT server.|
 | -w or --password| *mqtt password*| Optional password required by the MQTT server.|
+| -z or --timezone | tz string | tz database timezone string. Sets the timezone of the time stamps. Defaults to the local timezone. (example: UTC or Europe/Berlin) |
 
 *NOTE: Some options have changed since version 1.0* 
 
 ### Program Output
 
-Any error messages will be written to  `stderr`. Nothing will be written to `stdout` unless the `-d` option is specified. All sensor data will be sent across the MQTT channel as a string representation of a JSON object. 
+Any error messages will be written to  `stderr`. Nothing will be written to `stdout` unless the `-v` option is specified. All sensor data will be sent across the MQTT channel as a string representation of a JSON object. 
 
 The JSON Object will be similar to this:
 
 ```
 {
   "sensor_id": "slavepi01",
-  "time_stamp_ms": 1595509965783,
-  "time_stamp": "2020-07-23 09:12:45",
+  "time_stamp_ms": 1597015853719,
+  "time_stamp": "2020-08-09 23:30:53",
   "IAQ": 95.86,
   "iaq_accuracy": 3,
   "T": 24.13,
@@ -119,8 +120,8 @@ If the -u flag is set then the output would be similar to the following:
 ```
 {
   "sensor_id": "slavepi02",
-  "time_stamp_ms": 1595509965783,
-  "time_stamp": "2020-07-23 09:12:45",
+  "time_stamp_ms": 1597015853719,
+  "time_stamp": "2020-08-09 23:30:53",
   "IAQ": 129.66,
   "iaq_accuracy": 1,
   "T": 18.73,

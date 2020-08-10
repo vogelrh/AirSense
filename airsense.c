@@ -50,6 +50,8 @@ int i2c_address;
 const char* sensor_id;
 const char* username = NULL;
 const char* password = NULL;
+const char* timezone_str = NULL;
+int tz_offset = 0;
 char topic[MAX_TOPIC_LEN];
 char *filename_state = "bsec_iaq.state";
 char *filename_iaq_config = "bsec_iaq.config";
@@ -224,6 +226,30 @@ int64_t get_timestamp_us()
   int64_t system_current_time_us = system_current_time_ns / 1000;
   return system_current_time_us;
 }
+/*
+ * Calculate the millisecond offset from UTC to the timezone the
+ * program is running on.
+ */
+int tz_offset_ms()
+{
+  char buf[6] = {0};
+  char hr[3] = {0};
+  char min[3] = {0};
+  int isMinus;
+  time_t rawtime;
+  struct tm * timeinfo;
+  time(&rawtime);
+  timeinfo = localtime(&rawtime);
+  strftime(buf,6,"%z",timeinfo);
+  isMinus = buf[0] == '-' ? -1 : 1;
+  hr[0] = buf[1];
+  hr[1] = buf[2];
+  min[0] = buf[3];
+  min[1] = buf[4];
+  int hrms = atoi((char*)&hr) * 3600000;
+  int mrms = atoi((char*)&min) * 60000;
+  return (hrms + mrms) * isMinus;
+}
 
 /*
  * Callback handling of the BSE680 ready outputs. Sends data over MQTT channel in JSON format.
@@ -265,7 +291,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   struct tm tm = *localtime(&t);
   struct timeval tv;
   gettimeofday(&tv, NULL); 
-  int64_t tm_ms = (uint64_t)(tv.tv_sec) * 1000 + (uint64_t)(tv.tv_usec) / 1000;;
+  int64_t tm_ms = (uint64_t)(tv.tv_sec) * 1000 + (uint64_t)(tv.tv_usec) / 1000 + (uint64_t)tz_offset;
   int pstat;
   float di = temperature - 0.55 * (1 - 0.01 * humidity) * (temperature - 14.5);
 
@@ -449,7 +475,8 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  *                             components surrounding the BSE680 sensor (default: 5.0).
  * -u/--username <username> -- MQTT broker username
  * -w/--password <password> -- MQTT broker password
- * 
+ * -z/--timezone <tz string>-- tz database timezone string. Sets the timezone of the time stamps. Defaults
+ *                             to local timezone
  * return      result of the processing. Note only returns on fatal error.
  */
 int main(int argc, char **argv)
@@ -488,13 +515,14 @@ int main(int argc, char **argv)
       {"password",    required_argument, 0, 'w'},
       {"multiple",    required_argument, 0, 'm'},
       {"offset",    required_argument, 0, 'o'},
+      {"timezone",    required_argument, 0, 'z'},
       {0, 0, 0, 0}
     };
   /* getopt_long stores the option index here. */
   int option_index = 0;
   while (1)
     {
-      opt = getopt_long (argc, argv, "vsdu:b:p:t:i:w:m:o:",
+      opt = getopt_long (argc, argv, "vsdu:b:p:t:i:w:m:o:z:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -550,6 +578,10 @@ int main(int argc, char **argv)
           temp_offset = atof(optarg);
           break;
 
+        case 'z':
+          timezone_str = optarg;
+          break;
+
         case '?':
           /* getopt_long already printed an error message. */
           abort();
@@ -560,7 +592,14 @@ int main(int argc, char **argv)
         }
     }
 
-  if (strcmp(ptopic, DEF_TOPIC) == 0)  { // If topic not overriden, build default from: default topic / sensorId
+  // Set timezone if needed and calculate timezone millisecond offset
+  if (timezone_str != NULL) {
+    setenv("TZ", timezone_str, 1);
+  }
+  tz_offset = tz_offset_ms();
+
+  // If topic not overriden, build default from: default topic / sensorId
+  if (strcmp(ptopic, DEF_TOPIC) == 0)  { 
     snprintf(topic,sizeof(topic),"%s/%s", DEF_TOPIC, sensor_id); //build topic
   }
   if (debug) {
