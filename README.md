@@ -120,8 +120,8 @@ If the -u flag is set then the output would be similar to the following:
 ```
 {
   "sensor_id": "slavepi02",
-  "time_stamp_ms": 1595509965783,
-  "time_stamp": "2020-07-23 09:12:45",
+  "time_stamp_ms": 1597015853719,
+  "time_stamp": "2020-08-09 23:30:53",
   "IAQ": 129.66,
   "iaq_accuracy": 1,
   "T": 18.73,
