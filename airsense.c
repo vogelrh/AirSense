@@ -41,13 +41,16 @@
 #define DEF_ADDR "test.mosquitto.org"
 #define DEF_PORT "1883"
 #define DEF_TOPIC "AirSenseData"
+#define DEF_HA_TOPIC "homeassistant"
 #define DEF_SAMPLE_MULTIPLIER 2 //sample rate = DEF_SAMPLE_MULTIPLIER * 3 seconds (intrinsic lib sample rate)
 #define MAX_TOPIC_LEN 1024
 #define MAX_SEND_ERRORS 5 //max consecutive MQTT send errors
+#define HA_DISCOVERY_INTERVAL 10 // send home assistant discovery message every 10 sample messages
 
 int g_i2cFid; // I2C Linux device handle
 int i2c_address;
 const char* sensor_id;
+const char* sensor_title; // sensor_id capitalized
 const char* username = NULL;
 const char* password = NULL;
 const char* timezone_str = NULL;
@@ -58,6 +61,7 @@ char *filename_iaq_config = "bsec_iaq.config";
 struct mqtt_client client; //MQTT client
 int mqtt_send_errors = 0;
 int sample_count;
+int ha_discovery_count = 10;
 int sample_multiplier;
 int debug = 0;
 int disable5003 = 0;
@@ -143,7 +147,50 @@ void publish_callback(void** unused, struct mqtt_response_publish *published)
       printf("Topic: %.*s\n****\n", published->topic_name_size, (const char*)published->topic_name);       
     }
 }
+/**
+ * @brief 
+ * 
+ * @param payload 
+ * @param payload_size 
+ * @param mtopic 
+ * @param topic_size 
+ * @param unit 
+ * @param uofm 
+ */
+void sendHATopicPayload(char *unit, char *uofm, char *title, char *icon)
+{
+  char payload[512];
+  char haTopic[128];
+  snprintf(haTopic, sizeof(haTopic), "%s/sensor/airsense-%s/%s/config", DEF_HA_TOPIC, sensor_id, unit); //build topic
+  sprintf(payload, 
+      "{\"~\":\"%s\", \"name\":\"%s %s\",\"device\": {\"identifiers\":[\"AirSense-%s\"],\"manufacturer\":\"BobbyV\",\"model\":\"AirSense\",\"name\": \"%s Air\" },\"uniq_id\":\"%s_airsense_%s\",\"stat_t\":\"~/%s\", \"icon\":\"mdi:%s\", \"unit_of_meas\": \"%s\", \"value_template\": \"{{value_json.%s}}\"}",
+      DEF_TOPIC, sensor_title, title, sensor_title, sensor_title, sensor_id, unit, sensor_id, icon, uofm, unit);
+  
+  int mcnt = strlen(payload);
+  int stat = (int)mqtt_publish(&client, haTopic, payload, mcnt, (MQTT_PUBLISH_QOS_1 & MQTT_PUBLISH_RETAIN));
+  if (debug) {
+    printf("HA - %s publish status: %d\n", unit, stat);
+  }
+}
+/**
+ * @brief Publishes the Home Assistant discovery message for sensors for the
+ * T, IAQ, RH, CO2, PM 2.5 and PM > 0.3
+ * 
+ */
+void publish_ha_discovery()
+{
+  if (debug) {
+    printf("Sending HA auto discovery messages");
+  }
+  sendHATopicPayload("T", "°C", "Temperature", "thermometer");
+  sendHATopicPayload("RH", "%", "Humidity", "water-percent");
+  sendHATopicPayload("IAQ", "", "Air Quality", "air-purifier");
+  sendHATopicPayload("eCO2", "ppm", "CO2", "molecule-co2");
+  sendHATopicPayload("pm2_5cf", "µm/m3", "PM 2.5", "thought-bubble-outline");
+  sendHATopicPayload("gt0_3", "", "PM > 0.3", "thought-bubble");
 
+
+}
 /* BME680 functions */
 
 /*
@@ -285,6 +332,11 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy,
   sample_count++;
   if (sample_count < sample_multiplier) {
     return;
+  }
+  ha_discovery_count++;
+  if (ha_discovery_count > HA_DISCOVERY_INTERVAL) {
+    ha_discovery_count = 0;
+    publish_ha_discovery();
   }
   sample_count = 0;
   time_t t = time(NULL);
@@ -490,7 +542,8 @@ int main(int argc, char **argv)
   size_t len;
   char mname[256];
   gethostname(mname, sizeof(mname));
-  sensor_id = mname;
+  sensor_id = mname; //default sensor id
+
   sample_count = DEF_SAMPLE_MULTIPLIER;
   sample_multiplier = DEF_SAMPLE_MULTIPLIER;
   temp_offset = DEF_TEMP_OFFSET;
@@ -591,6 +644,20 @@ int main(int argc, char **argv)
           abort();
         }
     }
+  // set the sensor title
+  int tlen = strlen(sensor_id) + 1;
+  sensor_title = (char*)malloc(tlen);
+  char *s = sensor_id;
+  char *d = sensor_title;
+  for (int i=0; i < tlen; i++) {
+    if (i == 0) {
+      *d = toupper(*s);
+    } else {
+      *d = *s;
+    }
+    s++;
+    d++;
+  }
 
   // Set timezone if needed and calculate timezone millisecond offset
   if (timezone_str != NULL) {
