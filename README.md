@@ -1,7 +1,7 @@
 # AirSense
 
 A C application that periodically reads air quality data from two sensors (Bosh BME680 & Plantower PMS5003) and
-sends the data across a MQTT channel as a JSON object.
+sends the data across a MQTT channel as a JSON object. The application will also periodically send Home Assistant auto discovery messages for 6 of the most useful sensor readings.
 
 The app reads the BME680 sensor with the BSEC library on Linux (e.g. Raspberry Pi) and reads the PMS5003 sensor with a custom library included in the project. 
 Optionally the app can be configured to only output data from the BME680 sensor.
@@ -43,7 +43,7 @@ There is a script in this project `prepack.sh` which will bundle all of the requ
   * A GCC compiler on the target system
   * An included BSEC library file for the target system.
 
-The bundled code will be placed in a subdirectory of the ./prepack directory. For example if you are bundling for a Pi Zero target system, after configuring and running the `prepack.sh` script, you will find the bundle in the directory `prepack/PiZero_ArmV6-32bits` created in the toplevel of our project directory.
+The bundled code will be placed in a subdirectory of the ./prepack directory. For example if you are bundling for a Pi Zero target system, after configuring and running the `prepack.sh` script, you will find the bundle in the directory `prepack/PiThree_ArmV6` created in the toplevel of our project directory.
 
 If you have ssh set up on the target system you can send the file to the target using the `scp` command.
 
@@ -52,7 +52,7 @@ There are four script variables near the top of `prepack.sh` that have to be con
 
   * `VERSION` - can be either `normal_version` or `light_version`.
   * `BASE_ARCH` - the high-level target e.g. RaspberryPi, armcc, avr, etc.
-  * `SUB_ARCH` - the specific system architecture e.g. PiThree_ArmV8-a-64bits or PiZero_ArmV6-32bits.
+  * `SUB_ARCH` - the specific system architecture e.g. PiThree_ArmV8 or PiThree_ArmV6.
   * `CONFIG` - the specific BSEC configuration file to use.
 
 See the documentation enclosed with the BSEC code for more detail about the configuration files.
@@ -162,6 +162,9 @@ The JSON output format can easily be modified in the `output_ready` function.
 
 The BSEC library is supposed to create an internal state of calibration with increasing accuracy over time. Each 10000 samples it will save the internal calibration state to `./bsec_iaq.state` (or wherever you specify the config directory to be) so it can pick up where it was after interruption.
 
+## Home Assistant
+The application will send Home Assistant MQTT auto discovery messages for Temperature, Humidity, Air Quality PM 2.5 CO2 and PM > 0.3 sensor readings. The number of sensor values and there name as displayed in HA can be easily modified by changing the calls in the `publish_ha_discovery` function.
+
 ## Troubleshooting
 
 ### AirSense just quits without a message
@@ -182,7 +185,8 @@ The `bsec_iaq.config` file is not located in the default file path for AirSense.
 | -- | --- |
 | V1.0 | Initial release |
 | V1.0.1|Fixed bug that sent the string terminator at the end of the JSON MQTT message.
-|V1.1|Updated argument options to include a MQTT username and password. Also added a "time_stamp_ms" field to the JSON MQTT output to better accommodate sending the AirSense output to time-based databases.
+|V1.1|Updated argument options to include a MQTT username and password. Also added a "time_stamp_ms" field to the JSON MQTT output to better accommodate sending the AirSense output to time-based databases.|
+| V1.2| Added Home Assistant auto discovery and updated make and prepack scripts to accommodate the 1.4.8.0 version of the BSEC library.|
 
 # Hardware
 

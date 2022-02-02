@@ -4,7 +4,7 @@
 # The target system must have a gcc compiler and a means of 
 # unpacking a .tar.gz file.
 
-BSEC_DIR='./vendor_src/BSEC_1.4.7.4_Generic_Release'
+BSEC_DIR='./vendor_src/BSEC_1.4.8.0_Generic_Release_updated_v3'
 MQTT_DIR='./vendor_src/MQTT-C-master'
 PACK_DIR='./prepack'
 COPY_DIR='./prepack/airsense'
@@ -21,7 +21,7 @@ VERSION='normal_version'
 BASE_ARCH='RaspberryPI'
 
 # Sub architecture e.g. PiZero_ArmV6-32bits
-SUB_ARCH='PiZero_ArmV6-32bits'
+SUB_ARCH='PiThree_ArmV6'
 
 # CONFIG is the BSEC configuration file
 CONFIG='generic_33v_3s_4d'
@@ -50,8 +50,8 @@ echo "Copying files to temp directory..."
 cp -v "${MQTT_DIR}"/src/*.c "${COPY_DIR}"
 cp -v "${MQTT_DIR}"/include/*.h "${COPY_DIR}"
 cp -v "${MQTT_DIR}"/examples/templates/posix_sockets.h "${COPY_DIR}"
-cp -v "${BSEC_DIR}"/API/bme680* "${COPY_DIR}"
-cp -v "${BSEC_DIR}"/examples/bsec_integration* "${COPY_DIR}"
+cp -v "${BSEC_DIR}"/examples/bsec_iot_example/bme680* "${COPY_DIR}"
+cp -v "${BSEC_DIR}"/examples/bsec_iot_example/bsec_integration* "${COPY_DIR}"
 cp -v "${BSEC_DIR}/algo/${VERSION}/bin/${BASE_ARCH}/${SUB_ARCH}"/*.h "${COPY_DIR}"
 cp -v "${BSEC_DIR}/algo/${VERSION}/bin/${BASE_ARCH}/${SUB_ARCH}"/libalgobsec.a "${COPY_DIR}"
 cp -v "${BSEC_DIR}"/config/"${CONFIG}"/bsec_iaq.config "${COPY_DIR}"

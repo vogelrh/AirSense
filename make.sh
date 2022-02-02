@@ -29,7 +29,7 @@ if [ ! -d "${BIN_DIR}" ]; then
 fi
 
 echo 'Patching...'
-dir="${BSEC_DIR}/examples"
+dir="${BSEC_DIR}/examples/bsec_iot_example"
 patch='patches/eCO2+bVOCe.diff'
 if patch -N --dry-run --silent -d "${dir}/" \
   < "${patch}" 2>/dev/null
@@ -43,13 +43,12 @@ echo 'Compiling...'
 cc -Wall -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-duplicate-decl-specifier \
   -Wno-unused-variable -Wno-pointer-arith \
   -std=gnu99 -pedantic \
-  -iquote"${BSEC_DIR}"/API \
   -iquote"${BSEC_DIR}"/algo/${ARCH} \
   -iquote"${BSEC_DIR}"/examples \
   -isystem"${MQTT_DIR}"/include \
   -isystem"${MQTT_DIR}"/examples/templates \
-  "${BSEC_DIR}"/API/bme680.c \
-  "${BSEC_DIR}"/examples/bsec_integration.c \
+  "${BSEC_DIR}"/examples/bsec_iot_example/bme680.c \
+  "${BSEC_DIR}"/examples/bsec_iot_example/bsec_integration.c \
   "${MQTT_DIR}"/src/mqtt_pal.c \
   "${MQTT_DIR}"/src/mqtt.c \
   ./pms5003.c \
