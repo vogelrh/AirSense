@@ -699,7 +699,7 @@ int main(int argc, char **argv)
   uint8_t sendbuf[4096]; /* sendbuf should be large enough to hold multiple whole mqtt messages */
   uint8_t recvbuf[1024]; /* recvbuf should be large enough any whole mqtt message expected to be received */
   mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
-  mqtt_connect(&client, sensor_id, NULL, NULL, 0, NULL, NULL, 0, 400);
+  mqtt_connect(&client, sensor_id, NULL, NULL, 0, username, password, 0, 400);
 
   /* check that we don't have any errors */
   if (client.error != MQTT_OK) {
